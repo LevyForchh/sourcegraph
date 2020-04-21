@@ -37,5 +37,5 @@ COPY ./precise-code-intel-worker /usr/local/bin/precise-code-intel-worker
 
 EXPOSE 3188
 ENV LOG_LEVEL=debug
-ENV GO111MODULES=on LANG=en_US.utf8 LOG_LEVEL=debug
+ENV GO111MODULES=on LANG=en_US.utf8
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/precise-code-intel-worker"]
