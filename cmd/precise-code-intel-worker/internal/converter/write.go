@@ -28,12 +28,9 @@ func Write(cx *CorrelationState, filename string) (err error) {
 		`CREATE TABLE "meta" ("id" integer PRIMARY KEY NOT NULL, "lsifVersion" text NOT NULL, "sourcegraphVersion" text NOT NULL, "numResultChunks" integer NOT NULL)`,
 		`CREATE TABLE "references" ("id" integer PRIMARY KEY NOT NULL, "scheme" text NOT NULL, "identifier" text NOT NULL, "documentPath" text NOT NULL, "startLine" integer NOT NULL, "endLine" integer NOT NULL, "startCharacter" integer NOT NULL, "endCharacter" integer NOT NULL)`,
 		`CREATE TABLE "resultChunks" ("id" integer PRIMARY KEY NOT NULL, "data" blob NOT NULL)`,
-		`CREATE INDEX "IDX_76acf10194cd8b02410540f95f" ON "definitions" ("scheme", "identifier")`,
-		`CREATE INDEX "IDX_999100e25f3e24797fda20e537" ON "references" ("scheme", "identifier")`,
 	}
 
 	for _, stmt := range stmts {
-		// TODO - create indexes after insertion
 		if _, err := db.Exec(stmt); err != nil {
 			return err
 		}
@@ -50,7 +47,6 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	definitionsTableInserter := sqliteutil.NewBatchInserter(db, "definitions", "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
 	referencesTableInserter := sqliteutil.NewBatchInserter(db, `"references"`, "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
 
-	// TODO - make an iterator
 	fns := []func() error{
 		func() error { return populateMetadataTable(cx, numResultChunks, metadataTableInserter) },
 		func() error { return populateDocumentsTable(cx, documentsTableInserter) },
@@ -75,6 +71,17 @@ func Write(cx *CorrelationState, filename string) (err error) {
 
 	for _, inserter := range inserters {
 		if err := inserter.Flush(); err != nil {
+			return err
+		}
+	}
+
+	indexStmts := []string{
+		`CREATE INDEX "IDX_76acf10194cd8b02410540f95f" ON "definitions" ("scheme", "identifier")`,
+		`CREATE INDEX "IDX_999100e25f3e24797fda20e537" ON "references" ("scheme", "identifier")`,
+	}
+
+	for _, stmt := range indexStmts {
+		if _, err := db.Exec(stmt); err != nil {
 			return err
 		}
 	}

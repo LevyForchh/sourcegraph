@@ -10,7 +10,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/worker"
 	"github.com/sourcegraph/sourcegraph/internal/conf"
-	"github.com/sourcegraph/sourcegraph/internal/db/dbconn"
 	"github.com/sourcegraph/sourcegraph/internal/debugserver"
 	"github.com/sourcegraph/sourcegraph/internal/env"
 	"github.com/sourcegraph/sourcegraph/internal/sqliteutil"
@@ -55,8 +54,6 @@ func mustInitializeDatabase() db.DB {
 		log.Fatalf("failed to initialize db store: %s", err)
 	}
 
-	// TODO - sick, get rid of the calls into the frontend db package
-	dbconn.ConnectToDB(postgresDSN)
 	return db
 }
 

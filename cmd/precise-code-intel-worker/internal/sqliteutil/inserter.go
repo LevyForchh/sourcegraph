@@ -2,69 +2,62 @@ package sqliteutil
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/keegancsmith/sqlf"
 )
 
-type BatchInserter struct {
-	db                    *sqlx.DB
-	tableName             string
-	columnNames           []string
-	batches               [][]interface{}
-	maxBatchesBeforeFlush int
+const MaxNumSqliteParameters = 999
+
+type Execable interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
-func NewBatchInserter(db *sqlx.DB, tableName string, columnNames ...string) *BatchInserter {
+type BatchInserter struct {
+	db            Execable
+	tableName     string
+	columnNames   []string
+	batches       [][]interface{}
+	flushThresold int
+}
+
+func NewBatchInserter(db Execable, tableName string, columnNames ...string) *BatchInserter {
 	return &BatchInserter{
-		db:                    db,
-		tableName:             tableName,
-		columnNames:           columnNames,
-		maxBatchesBeforeFlush: 999 / len(columnNames),
+		db:            db,
+		tableName:     tableName,
+		columnNames:   columnNames,
+		flushThresold: MaxNumSqliteParameters / len(columnNames),
 	}
 }
 
 func (i *BatchInserter) Insert(values ...interface{}) error {
 	if len(values) != len(i.columnNames) {
-		return fmt.Errorf("mismatched batch")
+		return fmt.Errorf("expected %d values, got %d", len(i.columnNames), len(values))
 	}
 
 	i.batches = append(i.batches, values)
 
-	if len(i.batches) < i.maxBatchesBeforeFlush {
+	if len(i.batches) < i.flushThresold {
 		return nil
 	}
-
 	return i.Flush()
 }
 
 func (i *BatchInserter) Flush() error {
-	if len(i.batches) < i.maxBatchesBeforeFlush {
-		return i.flushFull()
+	var batch [][]interface{}
+	if len(i.batches) < i.flushThresold {
+		batch, i.batches = i.batches, nil
+	} else {
+		batch, i.batches = i.batches[:i.flushThresold], i.batches[i.flushThresold:]
 	}
-	return i.flushPartial()
-}
 
-func (i *BatchInserter) flushFull() error {
-	err := i.write(i.batches)
-	i.batches = nil
-	return err
-
-}
-
-func (i *BatchInserter) flushPartial() error {
-	err := i.write(i.batches[:i.maxBatchesBeforeFlush])
-	i.batches = i.batches[i.maxBatchesBeforeFlush:]
-	return err
-}
-
-func (i *BatchInserter) write(batch [][]interface{}) error {
 	if len(batch) == 0 {
 		return nil
 	}
 
+	// TODO - refactor this, don't build this every time
 	query := "INSERT INTO " + i.tableName + " (" + strings.Join(i.columnNames, ", ") + ") VALUES %s"
 
 	var queries []*sqlf.Query
@@ -78,7 +71,6 @@ func (i *BatchInserter) write(batch [][]interface{}) error {
 	}
 
 	qx := sqlf.Sprintf(query, sqlf.Join(queries, ","))
-
 	_, err := i.db.ExecContext(context.Background(), qx.Query(sqlf.SimpleBindVar), qx.Args()...)
 	return err
 }
