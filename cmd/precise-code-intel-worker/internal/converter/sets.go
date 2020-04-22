@@ -1,28 +1,10 @@
 package converter
 
-type defaultIDSetMap map[string]idSet
-
-func (sm defaultIDSetMap) getOrCreate(key string) idSet {
-	if s, ok := sm[key]; ok {
-		return s
-	}
-
-	s := newIDSet()
-	sm[key] = s
-	return s
-}
+import (
+	"sort"
+)
 
 type idSet map[string]struct{}
-
-func newIDSet() idSet {
-	return map[string]struct{}{}
-}
-
-func newSingletonIDSet(id string) idSet {
-	set := newIDSet()
-	set.add(id)
-	return set
-}
 
 func (set idSet) add(id string) {
 	set[id] = struct{}{}
@@ -44,6 +26,7 @@ func (set idSet) keys() []string {
 	for k := range set {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 
 	return keys
 }
@@ -55,11 +38,27 @@ func (set idSet) choose() (string, bool) {
 	return "", false
 }
 
-type disjointIDSet map[string]idSet
+//
+//
+//
 
-func newDisjointIDSet() disjointIDSet {
-	return map[string]idSet{}
+type defaultIDSetMap map[string]idSet
+
+func (sm defaultIDSetMap) getOrCreate(key string) idSet {
+	if s, ok := sm[key]; ok {
+		return s
+	}
+
+	s := idSet{}
+	sm[key] = s
+	return s
 }
+
+//
+//
+//
+
+type disjointIDSet map[string]idSet
 
 func (set disjointIDSet) union(id1, id2 string) {
 	set.getOrCreateSet(id1).add(id2)
@@ -67,7 +66,7 @@ func (set disjointIDSet) union(id1, id2 string) {
 }
 
 func (set disjointIDSet) extractSet(id string) idSet {
-	s := newSingletonIDSet(id)
+	s := idSet{}
 
 	frontier := []string{id}
 	for len(frontier) > 0 {
@@ -86,7 +85,7 @@ func (set disjointIDSet) extractSet(id string) idSet {
 func (set disjointIDSet) getOrCreateSet(id string) idSet {
 	s, ok := set[id]
 	if !ok {
-		s = newIDSet()
+		s = idSet{}
 		set[id] = s
 	}
 

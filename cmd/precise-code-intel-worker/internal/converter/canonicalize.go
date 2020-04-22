@@ -180,7 +180,7 @@ func mergeNextRangeData(item RangeData, nextItem ResultSetData) RangeData {
 }
 
 func gatherMonikers(cx *CorrelationState, source idSet) idSet {
-	monikers := newIDSet()
+	monikers := idSet{}
 	if canonicalID, ok := source.choose(); ok {
 		for id := range cx.linkedMonikers.extractSet(canonicalID) {
 			if cx.monikerData[id].Kind != "local" {

@@ -6,15 +6,17 @@ import (
 	"encoding/json"
 )
 
-func gzipJSON(x interface{}) ([]byte, error) {
+func gzipJSON(payload interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	w := gzip.NewWriter(&buf)
 
-	err := json.NewEncoder(w).Encode(x)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		return nil, err
 	}
-	_ = w.Close()
+
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
 
 	return buf.Bytes(), nil
 }

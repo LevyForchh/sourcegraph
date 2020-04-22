@@ -31,7 +31,7 @@ type CorrelationState struct {
 func newCorrelationState(dumpRoot string) *CorrelationState {
 	return &CorrelationState{
 		dumpRoot:               dumpRoot,
-		unsupportedVertexes:    newIDSet(),
+		unsupportedVertexes:    idSet{},
 		documentData:           map[string]DocumentData{},
 		rangeData:              map[string]RangeData{},
 		resultSetData:          map[string]ResultSetData{},
@@ -41,10 +41,10 @@ func newCorrelationState(dumpRoot string) *CorrelationState {
 		monikerData:            map[string]MonikerData{},
 		packageInformationData: map[string]PackageInformationData{},
 		nextData:               map[string]string{},
-		importedMonikers:       newIDSet(),
-		exportedMonikers:       newIDSet(),
-		linkedMonikers:         newDisjointIDSet(),
-		linkedReferenceResults: newDisjointIDSet(),
+		importedMonikers:       idSet{},
+		exportedMonikers:       idSet{},
+		linkedMonikers:         disjointIDSet{},
+		linkedReferenceResults: disjointIDSet{},
 	}
 }
 
@@ -340,10 +340,13 @@ func correlateMonikerEdge(c *CorrelationState, id string, edge Edge) error {
 		return malformedDump(id, edge.InV, "moniker")
 	}
 
+	ids := idSet{}
+	ids.add(edge.InV)
+
 	if source, ok := c.rangeData[edge.OutV]; ok {
-		c.rangeData[edge.OutV] = source.setMonikerIDs(newSingletonIDSet(edge.InV))
+		c.rangeData[edge.OutV] = source.setMonikerIDs(ids)
 	} else if source, ok := c.resultSetData[edge.OutV]; ok {
-		c.resultSetData[edge.OutV] = source.setMonikerIDs(newSingletonIDSet(edge.InV))
+		c.resultSetData[edge.OutV] = source.setMonikerIDs(ids)
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}

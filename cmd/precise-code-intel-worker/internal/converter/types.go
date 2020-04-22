@@ -79,7 +79,7 @@ func unmarshalDocumentData(element Element, projectRoot string) (payload Documen
 		return DocumentData{}, fmt.Errorf("document URI %s is not relative to project root %s", payload.URI, projectRoot)
 	}
 	payload.URI = payload.URI[len(projectRoot):]
-	payload.Contains = newIDSet()
+	payload.Contains = idSet{}
 	return
 }
 
@@ -118,7 +118,7 @@ func unmarshalRangeData(element Element) (RangeData, error) {
 		StartCharacter: payload.Start.Character,
 		EndLine:        payload.End.Line,
 		EndCharacter:   payload.End.Character,
-		MonikerIDs:     newIDSet(),
+		MonikerIDs:     idSet{},
 	}, nil
 }
 
@@ -282,7 +282,7 @@ type ResultSetData struct {
 }
 
 func unmarshalResultSetData(element Element) (ResultSetData, error) {
-	return ResultSetData{MonikerIDs: newIDSet()}, nil
+	return ResultSetData{MonikerIDs: idSet{}}, nil
 }
 
 func (d ResultSetData) setDefinitionResultID(id string) ResultSetData {

@@ -1,5 +1,9 @@
 package converter
 
+//
+// TODO - use bindata instead?
+//
+
 const (
 	CreateTableMeta = `
 		CREATE TABLE "meta" (

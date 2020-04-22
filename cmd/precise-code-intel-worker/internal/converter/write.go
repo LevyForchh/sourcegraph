@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jmoiron/sqlx"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/sqliteutil"
 )
@@ -30,11 +31,12 @@ func Write(cx *CorrelationState, filename string) (err error) {
 		return err
 	}
 	defer func() {
-		// TODO - uhh, something like this I guess
 		if err != nil {
-			err = txn.Commit()
+			if rollErr := txn.Rollback(); rollErr != nil {
+				err = multierror.Append(err, rollErr)
+			}
 		} else {
-			err = txn.Rollback()
+			err = txn.Commit()
 		}
 	}()
 
@@ -227,15 +229,12 @@ func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[strin
 		resultChunk := resultChunks[hashKey(id, len(resultChunks))]
 
 		for documentID, rangeIDs := range documentRanges {
-			doc, ok := cx.documentData[documentID]
-			if !ok {
-				panic("Should not happen")
-			}
+			doc := cx.documentData[documentID]
+			resultChunk.Paths[documentID] = doc.URI
 
 			for rangeID := range rangeIDs {
 				resultChunk.DocumentIDRangeIDs[id] = append(resultChunk.DocumentIDRangeIDs[id], DocumentIDRangeID{documentID, rangeID})
 			}
-			resultChunk.Paths[documentID] = doc.URI
 		}
 	}
 }
@@ -295,11 +294,8 @@ func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[str
 			moniker := cx.monikerData[monikerID]
 
 			for documentID, rangeIDs := range documentRanges {
+				doc := cx.documentData[documentID]
 
-				doc, ok := cx.documentData[documentID]
-				if !ok {
-					panic("Should not happen")
-				}
 				if strings.HasPrefix(doc.URI, "..") {
 					// Skip definitions or references that point to a document that are not
 					// present in the dump. Including this would cause a query that always
