@@ -9,42 +9,42 @@ import (
 )
 
 type CorrelationState struct {
-	dumpRoot               string
-	lsifVersion            string
-	projectRoot            string
-	unsupportedVertexes    idSet
-	documentData           map[string]DocumentData
-	rangeData              map[string]RangeData
-	resultSetData          map[string]ResultSetData
-	definitionData         map[string]defaultIDSetMap
-	referenceData          map[string]defaultIDSetMap
-	hoverData              map[string]string
-	monikerData            map[string]MonikerData
-	packageInformationData map[string]PackageInformationData
-	nextData               map[string]string
-	importedMonikers       idSet
-	exportedMonikers       idSet
-	linkedMonikers         disjointIDSet
-	linkedReferenceResults disjointIDSet
+	DumpRoot               string
+	LsifVersion            string
+	ProjectRoot            string
+	UnsupportedVertexes    idSet
+	DocumentData           map[string]DocumentData
+	RangeData              map[string]RangeData
+	ResultSetData          map[string]ResultSetData
+	DefinitionData         map[string]defaultIDSetMap
+	ReferenceData          map[string]defaultIDSetMap
+	HoverData              map[string]string
+	MonikerData            map[string]MonikerData
+	PackageInformationData map[string]PackageInformationData
+	NextData               map[string]string
+	ImportedMonikers       idSet
+	ExportedMonikers       idSet
+	LinkedMonikers         disjointIDSet
+	LinkedReferenceResults disjointIDSet
 }
 
 func newCorrelationState(dumpRoot string) *CorrelationState {
 	return &CorrelationState{
-		dumpRoot:               dumpRoot,
-		unsupportedVertexes:    idSet{},
-		documentData:           map[string]DocumentData{},
-		rangeData:              map[string]RangeData{},
-		resultSetData:          map[string]ResultSetData{},
-		definitionData:         map[string]defaultIDSetMap{},
-		referenceData:          map[string]defaultIDSetMap{},
-		hoverData:              map[string]string{},
-		monikerData:            map[string]MonikerData{},
-		packageInformationData: map[string]PackageInformationData{},
-		nextData:               map[string]string{},
-		importedMonikers:       idSet{},
-		exportedMonikers:       idSet{},
-		linkedMonikers:         disjointIDSet{},
-		linkedReferenceResults: disjointIDSet{},
+		DumpRoot:               dumpRoot,
+		UnsupportedVertexes:    idSet{},
+		DocumentData:           map[string]DocumentData{},
+		RangeData:              map[string]RangeData{},
+		ResultSetData:          map[string]ResultSetData{},
+		DefinitionData:         map[string]defaultIDSetMap{},
+		ReferenceData:          map[string]defaultIDSetMap{},
+		HoverData:              map[string]string{},
+		MonikerData:            map[string]MonikerData{},
+		PackageInformationData: map[string]PackageInformationData{},
+		NextData:               map[string]string{},
+		ImportedMonikers:       idSet{},
+		ExportedMonikers:       idSet{},
+		LinkedMonikers:         disjointIDSet{},
+		LinkedReferenceResults: disjointIDSet{},
 	}
 }
 
@@ -100,7 +100,7 @@ func correlate(filename, root string) (*CorrelationState, error) {
 		return nil, err
 	}
 
-	if cx.lsifVersion == "" {
+	if cx.LsifVersion == "" {
 		return nil, fmt.Errorf("no metadata defined")
 	}
 
@@ -121,7 +121,7 @@ func correlateElement(state *CorrelationState, element Element) error {
 func correlateVertex(state *CorrelationState, element Element) error {
 	handler, ok := vertexHandlers[element.Label]
 	if !ok {
-		state.unsupportedVertexes.add(element.ID)
+		state.UnsupportedVertexes.add(element.ID)
 		return nil
 	}
 
@@ -167,73 +167,73 @@ var edgeHandlers = map[string]func(c *CorrelationState, id string, edge Edge) er
 }
 
 func correlateMetaData(c *CorrelationState, element Element) error {
-	payload, err := unmarshalMetaData(element, c.dumpRoot)
-	c.lsifVersion = payload.Version
-	c.projectRoot = payload.ProjectRoot
+	payload, err := unmarshalMetaData(element, c.DumpRoot)
+	c.LsifVersion = payload.Version
+	c.ProjectRoot = payload.ProjectRoot
 	return err
 }
 
 func correlateDocument(c *CorrelationState, element Element) error {
-	if c.projectRoot == "" {
+	if c.ProjectRoot == "" {
 		return ErrMissingMetaData
 	}
 
-	payload, err := unmarshalDocumentData(element, c.projectRoot)
-	c.documentData[element.ID] = payload
+	payload, err := unmarshalDocumentData(element, c.ProjectRoot)
+	c.DocumentData[element.ID] = payload
 	return err
 }
 
 func correlateRange(c *CorrelationState, element Element) error {
 	payload, err := unmarshalRangeData(element)
-	c.rangeData[element.ID] = payload
+	c.RangeData[element.ID] = payload
 	return err
 }
 
 func correlateResultSet(c *CorrelationState, element Element) error {
 	payload, err := unmarshalResultSetData(element)
-	c.resultSetData[element.ID] = payload
+	c.ResultSetData[element.ID] = payload
 	return err
 }
 
 func correlateDefinitionResult(c *CorrelationState, element Element) error {
 	payload, err := unmarshalDefinitionResultData(element)
-	c.definitionData[element.ID] = payload
+	c.DefinitionData[element.ID] = payload
 	return err
 }
 
 func correlateReferenceResult(c *CorrelationState, element Element) error {
 	payload, err := unmarshalReferenceResultData(element)
-	c.referenceData[element.ID] = payload
+	c.ReferenceData[element.ID] = payload
 	return err
 }
 
 func correlateHoverResult(c *CorrelationState, element Element) error {
 	payload, err := unmarshalHoverData(element)
-	c.hoverData[element.ID] = payload
+	c.HoverData[element.ID] = payload
 	return err
 }
 
 func correlateMoniker(c *CorrelationState, element Element) error {
 	payload, err := unmarshalMonikerData(element)
-	c.monikerData[element.ID] = payload
+	c.MonikerData[element.ID] = payload
 	return err
 }
 
 func correlatePackageInformation(c *CorrelationState, element Element) error {
 	payload, err := unmarshalPackageInformationData(element)
-	c.packageInformationData[element.ID] = payload
+	c.PackageInformationData[element.ID] = payload
 	return err
 }
 
 func correlateContainsEdge(c *CorrelationState, id string, edge Edge) error {
-	doc, ok := c.documentData[edge.OutV]
+	doc, ok := c.DocumentData[edge.OutV]
 	if !ok {
 		// Do not track project contains
 		return nil
 	}
 
 	for _, inV := range edge.InVs {
-		if _, ok := c.rangeData[inV]; !ok {
+		if _, ok := c.RangeData[inV]; !ok {
 			return malformedDump(id, edge.InV, "range")
 		}
 		doc.Contains.add(inV)
@@ -242,23 +242,23 @@ func correlateContainsEdge(c *CorrelationState, id string, edge Edge) error {
 }
 
 func correlateNextEdge(c *CorrelationState, id string, edge Edge) error {
-	_, ok1 := c.rangeData[edge.OutV]
-	_, ok2 := c.resultSetData[edge.OutV]
+	_, ok1 := c.RangeData[edge.OutV]
+	_, ok2 := c.ResultSetData[edge.OutV]
 	if !ok1 && !ok2 {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
-	if _, ok := c.resultSetData[edge.InV]; !ok {
+	if _, ok := c.ResultSetData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "resultSet")
 	}
 
-	c.nextData[edge.OutV] = edge.InV
+	c.NextData[edge.OutV] = edge.InV
 	return nil
 }
 
 func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
-	if documentMap, ok := c.definitionData[edge.OutV]; ok {
+	if documentMap, ok := c.DefinitionData[edge.OutV]; ok {
 		for _, inV := range edge.InVs {
-			if _, ok := c.rangeData[inV]; !ok {
+			if _, ok := c.RangeData[inV]; !ok {
 				return malformedDump(id, edge.InV, "range")
 			}
 			documentMap.getOrCreate(edge.Document).add(inV)
@@ -267,12 +267,12 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 		return nil
 	}
 
-	if documentMap, ok := c.referenceData[edge.OutV]; ok {
+	if documentMap, ok := c.ReferenceData[edge.OutV]; ok {
 		for _, inV := range edge.InVs {
-			if _, ok := c.referenceData[inV]; ok {
-				c.linkedReferenceResults.union(edge.OutV, inV)
+			if _, ok := c.ReferenceData[inV]; ok {
+				c.LinkedReferenceResults.union(edge.OutV, inV)
 			} else {
-				if _, ok = c.rangeData[inV]; !ok {
+				if _, ok = c.RangeData[inV]; !ok {
 					return malformedDump(id, edge.InV, "range")
 				}
 				documentMap.getOrCreate(edge.Document).add(inV)
@@ -282,7 +282,7 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 		return nil
 	}
 
-	if !c.unsupportedVertexes.contains(edge.OutV) {
+	if !c.UnsupportedVertexes.contains(edge.OutV) {
 		return malformedDump(id, edge.OutV, "vertex")
 	}
 
@@ -291,14 +291,14 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 }
 
 func correlateTextDocumentDefinitionEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.definitionData[edge.InV]; !ok {
+	if _, ok := c.DefinitionData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "definitionResult")
 	}
 
-	if source, ok := c.rangeData[edge.OutV]; ok {
-		c.rangeData[edge.OutV] = source.setDefinitionResultID(edge.InV)
-	} else if source, ok := c.resultSetData[edge.OutV]; ok {
-		c.resultSetData[edge.OutV] = source.setDefinitionResultID(edge.InV)
+	if source, ok := c.RangeData[edge.OutV]; ok {
+		c.RangeData[edge.OutV] = source.setDefinitionResultID(edge.InV)
+	} else if source, ok := c.ResultSetData[edge.OutV]; ok {
+		c.ResultSetData[edge.OutV] = source.setDefinitionResultID(edge.InV)
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
@@ -306,14 +306,14 @@ func correlateTextDocumentDefinitionEdge(c *CorrelationState, id string, edge Ed
 }
 
 func correlateTextDocumentReferencesEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.referenceData[edge.InV]; !ok {
+	if _, ok := c.ReferenceData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "referenceResult")
 	}
 
-	if source, ok := c.rangeData[edge.OutV]; ok {
-		c.rangeData[edge.OutV] = source.setReferenceResultID(edge.InV)
-	} else if source, ok := c.resultSetData[edge.OutV]; ok {
-		c.resultSetData[edge.OutV] = source.setReferenceResultID(edge.InV)
+	if source, ok := c.RangeData[edge.OutV]; ok {
+		c.RangeData[edge.OutV] = source.setReferenceResultID(edge.InV)
+	} else if source, ok := c.ResultSetData[edge.OutV]; ok {
+		c.ResultSetData[edge.OutV] = source.setReferenceResultID(edge.InV)
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
@@ -321,14 +321,14 @@ func correlateTextDocumentReferencesEdge(c *CorrelationState, id string, edge Ed
 }
 
 func correlateTextDocumentHoverEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.hoverData[edge.InV]; !ok {
+	if _, ok := c.HoverData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "hoverResult")
 	}
 
-	if source, ok := c.rangeData[edge.OutV]; ok {
-		c.rangeData[edge.OutV] = source.setHoverResultID(edge.InV)
-	} else if source, ok := c.resultSetData[edge.OutV]; ok {
-		c.resultSetData[edge.OutV] = source.setHoverResultID(edge.InV)
+	if source, ok := c.RangeData[edge.OutV]; ok {
+		c.RangeData[edge.OutV] = source.setHoverResultID(edge.InV)
+	} else if source, ok := c.ResultSetData[edge.OutV]; ok {
+		c.ResultSetData[edge.OutV] = source.setHoverResultID(edge.InV)
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
@@ -336,17 +336,17 @@ func correlateTextDocumentHoverEdge(c *CorrelationState, id string, edge Edge) e
 }
 
 func correlateMonikerEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.monikerData[edge.InV]; !ok {
+	if _, ok := c.MonikerData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "moniker")
 	}
 
 	ids := idSet{}
 	ids.add(edge.InV)
 
-	if source, ok := c.rangeData[edge.OutV]; ok {
-		c.rangeData[edge.OutV] = source.setMonikerIDs(ids)
-	} else if source, ok := c.resultSetData[edge.OutV]; ok {
-		c.resultSetData[edge.OutV] = source.setMonikerIDs(ids)
+	if source, ok := c.RangeData[edge.OutV]; ok {
+		c.RangeData[edge.OutV] = source.setMonikerIDs(ids)
+	} else if source, ok := c.ResultSetData[edge.OutV]; ok {
+		c.ResultSetData[edge.OutV] = source.setMonikerIDs(ids)
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
@@ -354,34 +354,34 @@ func correlateMonikerEdge(c *CorrelationState, id string, edge Edge) error {
 }
 
 func correlateNextMonikerEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.monikerData[edge.InV]; !ok {
+	if _, ok := c.MonikerData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "moniker")
 	}
-	if _, ok := c.monikerData[edge.OutV]; !ok {
+	if _, ok := c.MonikerData[edge.OutV]; !ok {
 		return malformedDump(id, edge.OutV, "moniker")
 	}
 
-	c.linkedMonikers.union(edge.InV, edge.OutV)
+	c.LinkedMonikers.union(edge.InV, edge.OutV)
 	return nil
 }
 
 func correlatePackageInformationEdge(c *CorrelationState, id string, edge Edge) error {
-	if _, ok := c.packageInformationData[edge.InV]; !ok {
+	if _, ok := c.PackageInformationData[edge.InV]; !ok {
 		return malformedDump(id, edge.InV, "packageInformation")
 	}
 
-	source, ok := c.monikerData[edge.OutV]
+	source, ok := c.MonikerData[edge.OutV]
 	if !ok {
 		return malformedDump(id, edge.OutV, "moniker")
 	}
 
 	switch source.Kind {
 	case "import":
-		c.importedMonikers.add(edge.OutV)
+		c.ImportedMonikers.add(edge.OutV)
 	case "export":
-		c.exportedMonikers.add(edge.OutV)
+		c.ExportedMonikers.add(edge.OutV)
 	}
 
-	c.monikerData[edge.OutV] = source.setPackageInformationID(edge.InV)
+	c.MonikerData[edge.OutV] = source.setPackageInformationID(edge.InV)
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 
 func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState) error {
 	var paths []string
-	for _, doc := range cx.documentData {
+	for _, doc := range cx.DocumentData {
 		paths = append(paths, doc.URI)
 	}
 
@@ -17,20 +17,20 @@ func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState
 		return err
 	}
 
-	for documentID, doc := range cx.documentData {
+	for documentID, doc := range cx.DocumentData {
 		// Do not gather any document that is not within the dump root or does not exist
 		// in git. If the path is outside of the dump root, then it will never be queried
 		// as the current text document path and the dump root are compared to determine
 		// which dump to open. If the path does not exist in git, it will also never be
 		// queried.
 		if !ec.ShouldInclude(doc.URI) {
-			delete(cx.documentData, documentID)
+			delete(cx.DocumentData, documentID)
 		}
 	}
 
-	for _, documentRanges := range cx.definitionData {
+	for _, documentRanges := range cx.DefinitionData {
 		for documentID := range documentRanges {
-			if _, ok := cx.documentData[documentID]; !ok {
+			if _, ok := cx.DocumentData[documentID]; !ok {
 				// Skip pointing to locations that are not available in git. This can occur
 				// with indexers that point to generated files or dependencies that are not
 				// committed (e.g. node_modules). Keeping these in the dump can cause the
@@ -40,9 +40,9 @@ func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState
 		}
 	}
 
-	for _, documentRanges := range cx.referenceData {
+	for _, documentRanges := range cx.ReferenceData {
 		for documentID := range documentRanges {
-			if _, ok := cx.documentData[documentID]; !ok {
+			if _, ok := cx.DocumentData[documentID]; !ok {
 				// Skip pointing to locations that are not available in git. This can occur
 				// with indexers that point to generated files or dependencies that are not
 				// committed (e.g. node_modules). Keeping these in the dump can cause the

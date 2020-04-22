@@ -31,26 +31,26 @@ func canonicalize(cx *CorrelationState) {
 // * guarantees that duplicate document ids are removed from these maps.
 func canonicalizeDocuments(cx *CorrelationState) {
 	canonicalDocumentsIDsByPath := map[string]string{}
-	for documentID, doc := range cx.documentData {
+	for documentID, doc := range cx.DocumentData {
 		canonicalDocumentID, ok := canonicalDocumentsIDsByPath[doc.URI]
 		if !ok {
 			canonicalDocumentsIDsByPath[doc.URI] = documentID
 			continue
 		}
 
-		for id := range cx.documentData[documentID].Contains {
-			cx.documentData[canonicalDocumentID].Contains.add(id)
+		for id := range cx.DocumentData[documentID].Contains {
+			cx.DocumentData[canonicalDocumentID].Contains.add(id)
 		}
-		delete(cx.documentData, documentID)
+		delete(cx.DocumentData, documentID)
 
-		for _, rangeIDsByDocumentID := range cx.definitionData {
+		for _, rangeIDsByDocumentID := range cx.DefinitionData {
 			if rangeIDs, ok := rangeIDsByDocumentID[documentID]; ok {
 				rangeIDsByDocumentID.getOrCreate(canonicalDocumentID).addAll(rangeIDs)
 				delete(rangeIDsByDocumentID, documentID)
 			}
 		}
 
-		for _, rangeIDsByDocumentID := range cx.referenceData {
+		for _, rangeIDsByDocumentID := range cx.ReferenceData {
 			if rangeIDs, ok := rangeIDsByDocumentID[documentID]; ok {
 				rangeIDsByDocumentID.getOrCreate(canonicalDocumentID).addAll(rangeIDs)
 				delete(rangeIDsByDocumentID, documentID)
@@ -65,16 +65,16 @@ func canonicalizeDocuments(cx *CorrelationState) {
 // * Return a map from reference result identifier to the identifier of the canonical result.
 func canonicalizeReferenceResults(cx *CorrelationState) {
 	referenceResultIDToCanonicalReferenceResultIDs := map[string]string{}
-	for referenceResultID := range cx.linkedReferenceResults {
+	for referenceResultID := range cx.LinkedReferenceResults {
 		// Don't re-process the same set of linked reference results
 		if _, ok := referenceResultIDToCanonicalReferenceResultIDs[referenceResultID]; ok {
 			continue
 		}
 
 		// Find all reachable items and order them deterministically
-		linkedIDs := cx.linkedReferenceResults.extractSet(referenceResultID)
+		linkedIDs := cx.LinkedReferenceResults.extractSet(referenceResultID)
 		canonicalID, _ := linkedIDs.choose()
-		canonicalReferenceResult := cx.referenceData[canonicalID]
+		canonicalReferenceResult := cx.ReferenceData[canonicalID]
 
 		for linkedID := range linkedIDs {
 			// Link each id to its canonical representation. We do this for
@@ -88,21 +88,21 @@ func canonicalizeReferenceResults(cx *CorrelationState) {
 
 			// If it's a different identifier, then normalize all data from the linked result
 			// set into the canonical one.
-			for documentID, rangeIDs := range cx.referenceData[linkedID] {
+			for documentID, rangeIDs := range cx.ReferenceData[linkedID] {
 				canonicalReferenceResult.getOrCreate(documentID).addAll(rangeIDs)
 			}
 		}
 	}
 
-	for id, item := range cx.rangeData {
+	for id, item := range cx.RangeData {
 		if canonicalID, ok := referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID]; ok {
-			cx.rangeData[id] = item.setReferenceResultID(canonicalID)
+			cx.RangeData[id] = item.setReferenceResultID(canonicalID)
 		}
 	}
 
-	for id, item := range cx.resultSetData {
+	for id, item := range cx.ResultSetData {
 		if canonicalID, ok := referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID]; ok {
-			cx.resultSetData[id] = item.setReferenceResultID(canonicalID)
+			cx.ResultSetData[id] = item.setReferenceResultID(canonicalID)
 		}
 	}
 
@@ -113,37 +113,37 @@ func canonicalizeReferenceResults(cx *CorrelationState) {
 
 	for referenceResultID := range referenceResultIDToCanonicalReferenceResultIDs {
 		if _, ok := canonicalReferenceResultIDs[referenceResultID]; !ok {
-			delete(cx.referenceData, referenceResultID)
+			delete(cx.ReferenceData, referenceResultID)
 		}
 	}
 }
 
 func canonicalizeResultSets(cx *CorrelationState) {
-	for resultSetID, resultSetData := range cx.resultSetData {
+	for resultSetID, resultSetData := range cx.ResultSetData {
 		canonicalizeResultSetData(cx, resultSetID, resultSetData)
 	}
 
-	for resultSetID, resultSetData := range cx.resultSetData {
-		cx.resultSetData[resultSetID] = resultSetData.setMonikerIDs(gatherMonikers(cx, resultSetData.MonikerIDs))
+	for resultSetID, resultSetData := range cx.ResultSetData {
+		cx.ResultSetData[resultSetID] = resultSetData.setMonikerIDs(gatherMonikers(cx, resultSetData.MonikerIDs))
 	}
 }
 
 func canonicalizeRanges(cx *CorrelationState) {
-	for rangeID, rangeData := range cx.rangeData {
+	for rangeID, rangeData := range cx.RangeData {
 		if _, nextItem, ok := next(cx, rangeID); ok {
 			rangeData = mergeNextRangeData(rangeData, nextItem)
 		}
 
 		rd := rangeData.setMonikerIDs(gatherMonikers(cx, rangeData.MonikerIDs))
-		cx.rangeData[rangeID] = rd
+		cx.RangeData[rangeID] = rd
 	}
 }
 
 func canonicalizeResultSetData(cx *CorrelationState, id string, item ResultSetData) ResultSetData {
 	if nextID, nextItem, ok := next(cx, id); ok {
 		item = mergeNextResultSetData(item, canonicalizeResultSetData(cx, nextID, nextItem))
-		cx.resultSetData[id] = item
-		delete(cx.nextData, nextID)
+		cx.ResultSetData[id] = item
+		delete(cx.NextData, nextID)
 	}
 
 	return item
@@ -182,8 +182,8 @@ func mergeNextRangeData(item RangeData, nextItem ResultSetData) RangeData {
 func gatherMonikers(cx *CorrelationState, source idSet) idSet {
 	monikers := idSet{}
 	if canonicalID, ok := source.choose(); ok {
-		for id := range cx.linkedMonikers.extractSet(canonicalID) {
-			if cx.monikerData[id].Kind != "local" {
+		for id := range cx.LinkedMonikers.extractSet(canonicalID) {
+			if cx.MonikerData[id].Kind != "local" {
 				monikers.add(id)
 			}
 		}
@@ -193,10 +193,10 @@ func gatherMonikers(cx *CorrelationState, source idSet) idSet {
 }
 
 func next(cx *CorrelationState, id string) (string, ResultSetData, bool) {
-	nextID, ok := cx.nextData[id]
+	nextID, ok := cx.NextData[id]
 	if !ok {
 		return "", ResultSetData{}, false
 	}
 
-	return nextID, cx.resultSetData[nextID], true
+	return nextID, cx.ResultSetData[nextID], true
 }

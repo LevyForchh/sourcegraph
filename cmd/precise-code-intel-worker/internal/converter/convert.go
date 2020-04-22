@@ -41,9 +41,9 @@ func Convert(db db.DB, repositoryID int, commit, root, filename, newFilename str
 
 	// TODO - de-duplicate
 	var packages []Package
-	for id := range cx.exportedMonikers {
-		source := cx.monikerData[id]
-		packageInfo := cx.packageInformationData[source.PackageInformationID]
+	for id := range cx.ExportedMonikers {
+		source := cx.MonikerData[id]
+		packageInfo := cx.PackageInformationData[source.PackageInformationID]
 		packages = append(packages, Package{
 			Scheme:  source.Scheme,
 			Name:    packageInfo.Name,
@@ -53,9 +53,9 @@ func Convert(db db.DB, repositoryID int, commit, root, filename, newFilename str
 
 	// TODO - flatten
 	references := map[string]Reference{}
-	for id := range cx.importedMonikers {
-		source := cx.monikerData[id]
-		packageInfo := cx.packageInformationData[source.PackageInformationID]
+	for id := range cx.ImportedMonikers {
+		source := cx.MonikerData[id]
+		packageInfo := cx.PackageInformationData[source.PackageInformationID]
 		key := fmt.Sprintf("%s:%s:%s", source.Scheme, packageInfo.Name, packageInfo.Version)
 		references[key] = Reference{
 			Scheme:      source.Scheme,

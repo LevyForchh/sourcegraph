@@ -66,7 +66,7 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	}
 
 	// Calculate the number of result chunks that we'll attempt to populate
-	numResults := len(cx.definitionData) + len(cx.referenceData)
+	numResults := len(cx.DefinitionData) + len(cx.ReferenceData)
 	numResultChunks := int(math.Min(MaxNumResultChunks, math.Max(1, math.Floor(float64(numResults)/ResultsPerResultChunk))))
 
 	// TODO - insert inside a txn
@@ -119,7 +119,7 @@ func Write(cx *CorrelationState, filename string) (err error) {
 }
 
 func populateMetadataTable(ctx context.Context, cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
-	return inserter.Insert(ctx, cx.lsifVersion, InternalVersion, numResultChunks)
+	return inserter.Insert(ctx, cx.LsifVersion, InternalVersion, numResultChunks)
 }
 
 // TODO - need to serialize all stupid
@@ -136,7 +136,7 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 	// Each range also has identifiers that correlate to a definition or reference result
 	// which can be found in a result chunk, created in the next step.
 
-	for _, doc := range cx.documentData {
+	for _, doc := range cx.DocumentData {
 		if strings.HasPrefix(doc.URI, "..") {
 			continue
 		}
@@ -149,20 +149,20 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 		}
 
 		for rangeID := range doc.Contains {
-			r := cx.rangeData[rangeID]
+			r := cx.RangeData[rangeID]
 			document.Ranges[rangeID] = r
 
 			if r.HoverResultID != "" {
-				hoverData := cx.hoverData[r.HoverResultID]
+				hoverData := cx.HoverData[r.HoverResultID]
 				document.HoverResults[r.HoverResultID] = hoverData
 			}
 
 			for monikerID := range r.MonikerIDs {
-				moniker := cx.monikerData[monikerID]
+				moniker := cx.MonikerData[monikerID]
 				document.Monikers[monikerID] = moniker
 
 				if moniker.PackageInformationID != "" {
-					packageInformation := cx.packageInformationData[moniker.PackageInformationID]
+					packageInformation := cx.PackageInformationData[moniker.PackageInformationID]
 					document.PackageInformation[moniker.PackageInformationID] = packageInformation
 				}
 			}
@@ -203,8 +203,8 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 		})
 	}
 
-	addToChunk(cx, resultChunks, cx.definitionData)
-	addToChunk(cx, resultChunks, cx.referenceData)
+	addToChunk(cx, resultChunks, cx.DefinitionData)
+	addToChunk(cx, resultChunks, cx.ReferenceData)
 
 	for id, resultChunk := range resultChunks {
 		if len(resultChunk.Paths) == 0 && len(resultChunk.DocumentIDRangeIDs) == 0 {
@@ -229,7 +229,7 @@ func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[strin
 		resultChunk := resultChunks[hashKey(id, len(resultChunks))]
 
 		for documentID, rangeIDs := range documentRanges {
-			doc := cx.documentData[documentID]
+			doc := cx.DocumentData[documentID]
 			resultChunk.Paths[documentID] = doc.URI
 
 			for rangeID := range rangeIDs {
@@ -247,7 +247,7 @@ func populateDefinitionsTable(ctx context.Context, cx *CorrelationState, inserte
 	//       LSIF dump, which is by far the largest proportion of data.
 
 	definitionMonikers := defaultIDSetMap{}
-	for _, r := range cx.rangeData {
+	for _, r := range cx.RangeData {
 		if r.DefinitionResultID != "" && len(r.MonikerIDs) > 0 {
 			s := definitionMonikers.getOrCreate(r.DefinitionResultID)
 			for id := range r.MonikerIDs {
@@ -256,7 +256,7 @@ func populateDefinitionsTable(ctx context.Context, cx *CorrelationState, inserte
 		}
 	}
 
-	return insertMonikerRanges(ctx, cx, cx.definitionData, definitionMonikers, inserter)
+	return insertMonikerRanges(ctx, cx, cx.DefinitionData, definitionMonikers, inserter)
 }
 
 func populateReferencesTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
@@ -267,7 +267,7 @@ func populateReferencesTable(ctx context.Context, cx *CorrelationState, inserter
 	//       LSIF dump, which is by far the largest proportion of data.
 
 	referenceMonikers := defaultIDSetMap{}
-	for _, r := range cx.rangeData {
+	for _, r := range cx.RangeData {
 		if r.ReferenceResultID != "" && len(r.MonikerIDs) > 0 {
 			s := referenceMonikers.getOrCreate(r.ReferenceResultID)
 			for id := range r.MonikerIDs {
@@ -276,7 +276,7 @@ func populateReferencesTable(ctx context.Context, cx *CorrelationState, inserter
 		}
 	}
 
-	return insertMonikerRanges(ctx, cx, cx.referenceData, referenceMonikers, inserter)
+	return insertMonikerRanges(ctx, cx, cx.ReferenceData, referenceMonikers, inserter)
 }
 
 func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[string]defaultIDSetMap, monikers defaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
@@ -291,10 +291,10 @@ func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[str
 		// the result set provided by the data argument of this function.
 
 		for monikerID := range monikerIDs {
-			moniker := cx.monikerData[monikerID]
+			moniker := cx.MonikerData[monikerID]
 
 			for documentID, rangeIDs := range documentRanges {
-				doc := cx.documentData[documentID]
+				doc := cx.DocumentData[documentID]
 
 				if strings.HasPrefix(doc.URI, "..") {
 					// Skip definitions or references that point to a document that are not
@@ -304,7 +304,7 @@ func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[str
 				}
 
 				for id := range rangeIDs {
-					r := cx.rangeData[id]
+					r := cx.RangeData[id]
 
 					if err := inserter.Insert(ctx, moniker.Scheme, moniker.Identifier, doc.URI, r.StartLine, r.StartCharacter, r.EndLine, r.EndCharacter); err != nil {
 						return err
