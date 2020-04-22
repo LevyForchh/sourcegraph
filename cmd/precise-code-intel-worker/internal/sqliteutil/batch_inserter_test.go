@@ -147,15 +147,13 @@ func BenchmarkSQLiteInsertionWithBatchInserter(b *testing.B) {
 func withTestDB(t testing.TB, test func(db *sqlx.DB) error) {
 	tempDir, err := ioutil.TempDir("", "")
 	if err != nil {
-		t.Fatalf("failed to create temp directory: %s", err)
+		t.Fatalf("unexpected error creating temp directory: %s", err)
 	}
-	defer func() {
-		os.RemoveAll(tempDir)
-	}()
+	defer os.RemoveAll(tempDir)
 
 	db, err := sqlx.Open("sqlite3_with_pcre", filepath.Join(tempDir, "batch.db"))
 	if err != nil {
-		t.Fatalf("failed to open database: %s", err)
+		t.Fatalf("unexpected error opening database: %s", err)
 	}
 
 	createTableQuery := `

@@ -24,7 +24,7 @@ type Execable interface {
 
 func NewBatchInserter(db Execable, tableName string, columnNames ...string) *BatchInserter {
 	numColumns := len(columnNames)
-	maxBatchSize := (MaxNumSqliteParameters / len(columnNames)) * len(columnNames)
+	maxBatchSize := (MaxNumSqliteParameters / numColumns) *numColumns
 
 	placeholders := make([]string, numColumns)
 	quotedColumnNames := make([]string, numColumns)

@@ -10,6 +10,8 @@ import (
 )
 
 func Write(cx *CorrelationState, filename string) (err error) {
+	ctx := context.Background()
+
 	db, err := sqlx.Open("sqlite3_with_pcre", filename)
 	if err != nil {
 		return err
@@ -73,11 +75,11 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	referencesTableInserter := sqliteutil.NewBatchInserter(txn, `"references"`, "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
 
 	fns := []func() error{
-		func() error { return populateMetadataTable(cx, numResultChunks, metadataTableInserter) },
-		func() error { return populateDocumentsTable(cx, documentsTableInserter) },
-		func() error { return populateResultChunksTable(cx, numResultChunks, resultChunksTableInserter) },
-		func() error { return populateDefinitionsTable(cx, definitionsTableInserter) },
-		func() error { return populateReferencesTable(cx, referencesTableInserter) },
+		func() error { return populateMetadataTable(ctx, cx, numResultChunks, metadataTableInserter) },
+		func() error { return populateDocumentsTable(ctx, cx, documentsTableInserter) },
+		func() error { return populateResultChunksTable(ctx, cx, numResultChunks, resultChunksTableInserter) },
+		func() error { return populateDefinitionsTable(ctx, cx, definitionsTableInserter) },
+		func() error { return populateReferencesTable(ctx, cx, referencesTableInserter) },
 	}
 
 	for _, fn := range fns {
@@ -95,7 +97,7 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	}
 
 	for _, inserter := range inserters {
-		if err := inserter.Flush(); err != nil {
+		if err := inserter.Flush(ctx); err != nil {
 			return err
 		}
 	}
@@ -114,8 +116,8 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	return nil
 }
 
-func populateMetadataTable(cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
-	return inserter.Insert(cx.lsifVersion, InternalVersion, numResultChunks)
+func populateMetadataTable(ctx context.Context, cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
+	return inserter.Insert(ctx, cx.lsifVersion, InternalVersion, numResultChunks)
 }
 
 // TODO - need to serialize all stupid
@@ -126,7 +128,7 @@ type DocumentDatas struct {
 	PackageInformation map[string]PackageInformationData `json:"packageInformation"`
 }
 
-func populateDocumentsTable(cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
+func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
 	// Gather and insert document data that includes the ranges contained in the document,
 	// any associated hover data, and any associated moniker data/package information.
 	// Each range also has identifiers that correlate to a definition or reference result
@@ -172,7 +174,7 @@ func populateDocumentsTable(cx *CorrelationState, inserter *sqliteutil.BatchInse
 			return err
 		}
 
-		if err := inserter.Insert(doc.URI, data); err != nil {
+		if err := inserter.Insert(ctx, doc.URI, data); err != nil {
 			return err
 		}
 	}
@@ -190,7 +192,7 @@ type DocumentIDRangeID struct {
 	RangeID    string `json:"rangeId"`
 }
 
-func populateResultChunksTable(cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
+func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
 	var resultChunks []ResultChunk
 	for i := 0; i < numResultChunks; i++ {
 		resultChunks = append(resultChunks, ResultChunk{
@@ -212,7 +214,7 @@ func populateResultChunksTable(cx *CorrelationState, numResultChunks int, insert
 			return err
 		}
 
-		if err := inserter.Insert(id, data); err != nil {
+		if err := inserter.Insert(ctx, id, data); err != nil {
 			return err
 		}
 	}
@@ -238,7 +240,7 @@ func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[strin
 	}
 }
 
-func populateDefinitionsTable(cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
+func populateDefinitionsTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
 	// Determine the set of monikers that are attached to a definition or a
 	// reference result. Correlating information in this way has two benefits:
 	//   (1) it reduces duplicates in the definitions and references tables
@@ -255,10 +257,10 @@ func populateDefinitionsTable(cx *CorrelationState, inserter *sqliteutil.BatchIn
 		}
 	}
 
-	return insertMonikerRanges(cx, cx.definitionData, definitionMonikers, inserter)
+	return insertMonikerRanges(ctx, cx, cx.definitionData, definitionMonikers, inserter)
 }
 
-func populateReferencesTable(cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
+func populateReferencesTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
 	// Determine the set of monikers that are attached to a definition or a
 	// reference result. Correlating information in this way has two benefits:
 	//   (1) it reduces duplicates in the definitions and references tables
@@ -275,10 +277,10 @@ func populateReferencesTable(cx *CorrelationState, inserter *sqliteutil.BatchIns
 		}
 	}
 
-	return insertMonikerRanges(cx, cx.referenceData, referenceMonikers, inserter)
+	return insertMonikerRanges(ctx, cx, cx.referenceData, referenceMonikers, inserter)
 }
 
-func insertMonikerRanges(cx *CorrelationState, data map[string]defaultIDSetMap, monikers defaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
+func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[string]defaultIDSetMap, monikers defaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
 	for id, documentRanges := range data {
 		// Get monikers. Nothing to insert if we don't have any.
 		monikerIDs, ok := monikers[id]
@@ -308,7 +310,7 @@ func insertMonikerRanges(cx *CorrelationState, data map[string]defaultIDSetMap, 
 				for id := range rangeIDs {
 					r := cx.rangeData[id]
 
-					if err := inserter.Insert(moniker.Scheme, moniker.Identifier, doc.URI, r.StartLine, r.StartCharacter, r.EndLine, r.EndCharacter); err != nil {
+					if err := inserter.Insert(ctx, moniker.Scheme, moniker.Identifier, doc.URI, r.StartLine, r.StartCharacter, r.EndLine, r.EndCharacter); err != nil {
 						return err
 					}
 				}
