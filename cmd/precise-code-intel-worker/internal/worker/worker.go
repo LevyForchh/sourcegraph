@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/bundles"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/converter"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
@@ -38,7 +39,7 @@ func (w *Worker) Start() error {
 	for {
 		fmt.Printf("BUMPIN\n")
 
-		upload, closer, ok, err := w.db.Dequeue(context.Background())
+		upload, jobHandle, ok, err := w.db.Dequeue(context.Background())
 		if err != nil {
 			return err
 		}
@@ -48,7 +49,7 @@ func (w *Worker) Start() error {
 		}
 
 		fmt.Printf("Processing\n")
-		if err := w.process(upload, closer); err != nil {
+		if err := w.process(upload, jobHandle); err != nil {
 			fmt.Printf("FAILED TO PROCESS: %#v\n", err)
 			return err
 		}
@@ -57,10 +58,17 @@ func (w *Worker) Start() error {
 	}
 }
 
-func (w *Worker) process(upload db.Upload, closer db.TxCloser) (err error) {
+func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 	defer func() {
-		// TODO - mark complete or error
-		err = closer.CloseTx(err)
+		if err != nil {
+			// TODO
+			if markErr := jobHandle.MarkErrored("", ""); markErr != nil {
+				err = multierror.Append(err, markErr)
+			}
+		} else {
+			err = jobHandle.MarkComplete()
+		}
+
 	}()
 
 	name, err := ioutil.TempDir("", "")
