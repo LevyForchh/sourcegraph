@@ -18,6 +18,7 @@ type DB interface {
 	UpdateReferences(ctx context.Context, tw *transactionWrapper, uploadID int, references []Reference) error
 	UpdateCommits(ctx context.Context, repositoryID int, commits map[string][]string) error
 	DeleteOverlappingDumps(ctx context.Context, tw *transactionWrapper, repositoryID int, commit, root, indexer string) error
+	UpdateDumpsVisibleFromTip(ctx context.Context, tw *transactionWrapper, repositoryID int, tipCommit string) error
 }
 
 func (db *dbImpl) exec(ctx context.Context, query *sqlf.Query) error {
@@ -29,4 +30,8 @@ func (db *dbImpl) exec(ctx context.Context, query *sqlf.Query) error {
 func scanString(scanner Scanner) (value string, err error) {
 	err = scanner.Scan(&value)
 	return
+}
+
+func (db *dbImpl) UpdateDumpsVisibleFromTip(ctx context.Context, tw *transactionWrapper, repositoryID int, tipCommit string) error {
+	return db.updateDumpsVisibleFromTip(ctx, tw, repositoryID, tipCommit)
 }

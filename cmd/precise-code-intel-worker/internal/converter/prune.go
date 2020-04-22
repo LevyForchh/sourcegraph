@@ -11,6 +11,7 @@ func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState
 		paths = append(paths, doc.URI)
 	}
 
+	// TODO - need to factor this stuff out
 	ec, err := existence.NewExistenceChecker(db, repositoryID, commit, root, paths)
 	if err != nil {
 		return err
