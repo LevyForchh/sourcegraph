@@ -9,7 +9,7 @@ import (
 
 type ExistenceChecker struct {
 	root        string
-	dirContents map[string][]string
+	dirContents map[string]map[string]struct{}
 }
 
 func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths []string) (*ExistenceChecker, error) {
@@ -24,31 +24,20 @@ func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths 
 }
 
 func (ec *ExistenceChecker) ShouldInclude(path string) bool {
-	// TODO - use a set instead
-	includes := func(l []string, p string) bool {
-		for _, x := range l {
-			if x == p {
-				return true
-			}
-		}
-
+	children, ok := ec.dirContents[dirWithoutDot(filepath.Join(ec.root, path))]
+	if !ok {
 		return false
 	}
-
-	relative := filepath.Join(ec.root, path)
-	if children, ok := ec.dirContents[dirWithoutDot(relative)]; !ok || !includes(children, path) {
-		return false
-	}
-
-	return true
+	_, ok = children[path]
+	return ok
 }
 
 // TODO - real dumb way to do this
 type getChildrenFunc func(dirnames []string) (map[string][]string, error)
 
 // TODO - rename fn
-func getDirectoryContents(root string, paths []string, fn getChildrenFunc) (map[string][]string, error) {
-	contents := map[string][]string{}
+func getDirectoryContents(root string, paths []string, fn getChildrenFunc) (map[string]map[string]struct{}, error) {
+	contents := map[string]map[string]struct{}{}
 
 	for batch := makeInitialRequestBatch(root, paths); len(batch) > 0; batch = batch.next(contents) {
 		batchResults, err := fn(batch.dirnames())
@@ -58,7 +47,11 @@ func getDirectoryContents(root string, paths []string, fn getChildrenFunc) (map[
 
 		for directory, children := range batchResults {
 			if len(children) > 0 {
-				contents[directory] = children
+				v := map[string]struct{}{}
+				for _, c := range children {
+					v[c] = struct{}{}
+				}
+				contents[directory] = v
 			}
 		}
 	}
@@ -88,7 +81,7 @@ func (batch RequestBatch) dirnames() []string {
 	return dirnames
 }
 
-func (batch RequestBatch) next(contents map[string][]string) RequestBatch {
+func (batch RequestBatch) next(contents map[string]map[string]struct{}) RequestBatch {
 	nextBatch := RequestBatch{}
 	for nodeGroupPath, nodes := range batch {
 		for _, node := range nodes {

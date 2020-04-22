@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestGetDirectoryContentsNoRoot(t *testing.T) {
+func TestGetDirectoryContents(t *testing.T) {
 	gitContentsOracle := map[string][]string{
 		"":           {"web/"},
 		"web":        {"web/core/", "web/shared/"},
@@ -44,7 +44,25 @@ func TestGetDirectoryContentsNoRoot(t *testing.T) {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}
 
-	if diff := cmp.Diff(gitContentsOracle, values); diff != "" {
+	expectedContents := map[string]map[string]struct{}{
+		"": {
+			"web/": struct{}{},
+		},
+		"web": {
+			"web/core/":   struct{}{},
+			"web/shared/": struct{}{},
+		},
+		"web/core": {
+			"web/core/foo.ts": struct{}{},
+			"web/core/bar.ts": struct{}{},
+			"web/core/baz.ts": struct{}{},
+		},
+		"web/shared": {
+			"web/shared/bonk.ts": struct{}{},
+			"web/shared/quux.ts": struct{}{},
+		},
+	}
+	if diff := cmp.Diff(expectedContents, values); diff != "" {
 		t.Errorf("unexpected directory contents (-want +got):\n%s", diff)
 	}
 
@@ -59,7 +77,7 @@ func TestGetDirectoryContentsNoRoot(t *testing.T) {
 	}
 }
 
-func TestGetDirectoryContents(t *testing.T) {
+func TestGetDirectoryContentsWithRoot(t *testing.T) {
 	gitContentsOracle := map[string][]string{
 		"":                {"root/"},
 		"root":            {"root/web/"},
@@ -87,21 +105,29 @@ func TestGetDirectoryContents(t *testing.T) {
 		"web/shared/quux.ts",
 		"web/shared/quux.generated.ts",
 	}
-	for i := 0; i < 100; i++ {
-		// Should skip all of these directories
-		paths = append(paths, fmt.Sprintf("web/node_modules/%d/deeply/nested/lib/file.ts", i))
-	}
 
 	values, err := getDirectoryContents("root", paths, mockGetChildrenFunc)
 	if err != nil {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}
 
-	expectedContents := map[string][]string{
-		"root":            {"root/web/"},
-		"root/web":        {"root/web/core/", "root/web/shared/"},
-		"root/web/core":   {"root/web/core/foo.ts", "root/web/core/bar.ts", "root/web/core/baz.ts"},
-		"root/web/shared": {"root/web/shared/bonk.ts", "root/web/shared/quux.ts"},
+	expectedContents := map[string]map[string]struct{}{
+		"root": {
+			"root/web/": struct{}{},
+		},
+		"root/web": {
+			"root/web/core/":   struct{}{},
+			"root/web/shared/": struct{}{},
+		},
+		"root/web/core": {
+			"root/web/core/foo.ts": struct{}{},
+			"root/web/core/bar.ts": struct{}{},
+			"root/web/core/baz.ts": struct{}{},
+		},
+		"root/web/shared": {
+			"root/web/shared/bonk.ts": struct{}{},
+			"root/web/shared/quux.ts": struct{}{},
+		},
 	}
 	if diff := cmp.Diff(expectedContents, values); diff != "" {
 		t.Errorf("unexpected directory contents (-want +got):\n%s", diff)
@@ -110,8 +136,7 @@ func TestGetDirectoryContents(t *testing.T) {
 	expectedRequests := [][]string{
 		{"root"},
 		{"root/web"},
-		{"root/web/core", "root/web/node_modules", "root/web/shared"},
-		// N.B. Does not recurse into node_modules
+		{"root/web/core", "root/web/shared"},
 	}
 	if diff := cmp.Diff(expectedRequests, requests); diff != "" {
 		t.Errorf("unexpected request to gitserver (-want +got):\n%s", diff)
