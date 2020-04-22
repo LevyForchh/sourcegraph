@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"context"
 	"math"
 	"strings"
 
@@ -22,12 +23,36 @@ func Write(cx *CorrelationState, filename string) (err error) {
 		}
 	}()
 
+	txn, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// TODO - uhh, something like this I guess
+		if err != nil {
+			err = txn.Commit()
+		} else {
+			err = txn.Rollback()
+		}
+	}()
+
+	pragmaStmts := []string{
+		PragmaA,
+		PragmaB,
+	}
+
+	for _, stmt := range pragmaStmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
 	stmts := []string{
-		`CREATE TABLE "definitions" ("id" integer PRIMARY KEY NOT NULL, "scheme" text NOT NULL, "identifier" text NOT NULL, "documentPath" text NOT NULL, "startLine" integer NOT NULL, "endLine" integer NOT NULL, "startCharacter" integer NOT NULL, "endCharacter" integer NOT NULL)`,
-		`CREATE TABLE "documents" ("path" text PRIMARY KEY NOT NULL, "data" blob NOT NULL)`,
-		`CREATE TABLE "meta" ("id" integer PRIMARY KEY NOT NULL, "lsifVersion" text NOT NULL, "sourcegraphVersion" text NOT NULL, "numResultChunks" integer NOT NULL)`,
-		`CREATE TABLE "references" ("id" integer PRIMARY KEY NOT NULL, "scheme" text NOT NULL, "identifier" text NOT NULL, "documentPath" text NOT NULL, "startLine" integer NOT NULL, "endLine" integer NOT NULL, "startCharacter" integer NOT NULL, "endCharacter" integer NOT NULL)`,
-		`CREATE TABLE "resultChunks" ("id" integer PRIMARY KEY NOT NULL, "data" blob NOT NULL)`,
+		CreateTableDefinitions,
+		CreateTableDocuments,
+		CreateTableMeta,
+		CreateTableReferences,
+		CreateTableResultChunks,
 	}
 
 	for _, stmt := range stmts {
@@ -41,11 +66,11 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	numResultChunks := int(math.Min(MaxNumResultChunks, math.Max(1, math.Floor(float64(numResults)/ResultsPerResultChunk))))
 
 	// TODO - insert inside a txn
-	metadataTableInserter := sqliteutil.NewBatchInserter(db, "meta", "lsifVersion", "sourcegraphVersion", "numResultChunks")
-	documentsTableInserter := sqliteutil.NewBatchInserter(db, "documents", "path", "data")
-	resultChunksTableInserter := sqliteutil.NewBatchInserter(db, "resultChunks", "id", "data")
-	definitionsTableInserter := sqliteutil.NewBatchInserter(db, "definitions", "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
-	referencesTableInserter := sqliteutil.NewBatchInserter(db, `"references"`, "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
+	metadataTableInserter := sqliteutil.NewBatchInserter(txn, "meta", "lsifVersion", "sourcegraphVersion", "numResultChunks")
+	documentsTableInserter := sqliteutil.NewBatchInserter(txn, "documents", "path", "data")
+	resultChunksTableInserter := sqliteutil.NewBatchInserter(txn, "resultChunks", "id", "data")
+	definitionsTableInserter := sqliteutil.NewBatchInserter(txn, "definitions", "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
+	referencesTableInserter := sqliteutil.NewBatchInserter(txn, `"references"`, "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
 
 	fns := []func() error{
 		func() error { return populateMetadataTable(cx, numResultChunks, metadataTableInserter) },
@@ -76,8 +101,8 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	}
 
 	indexStmts := []string{
-		`CREATE INDEX "IDX_76acf10194cd8b02410540f95f" ON "definitions" ("scheme", "identifier")`,
-		`CREATE INDEX "IDX_999100e25f3e24797fda20e537" ON "references" ("scheme", "identifier")`,
+		CreateDefinitionsIndex,
+		CreateReferencesIndex,
 	}
 
 	for _, stmt := range indexStmts {

@@ -2,6 +2,7 @@ package existence
 
 import (
 	"path/filepath"
+	"sort"
 
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 )
@@ -12,7 +13,9 @@ type ExistenceChecker struct {
 }
 
 func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths []string) (*ExistenceChecker, error) {
-	dirContents, err := getDirectoryContents(db, repositoryID, commit, root, paths)
+	dirContents, err := getDirectoryContents(root, paths, func(dirnames []string) (map[string][]string, error) {
+		return getDirectoryChildren(db, repositoryID, commit, paths)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -21,71 +24,80 @@ func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths 
 }
 
 func (ec *ExistenceChecker) ShouldInclude(path string) bool {
+	// TODO - use a set instead
+	includes := func(l []string, p string) bool {
+		for _, x := range l {
+			if x == p {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	relative := filepath.Join(ec.root, path)
-	if children, ok := ec.dirContents[dirnameWithoutDot(relative)]; !ok || !includes(children, path) {
+	if children, ok := ec.dirContents[dirWithoutDot(relative)]; !ok || !includes(children, path) {
 		return false
 	}
 
 	return true
 }
 
-type xbatch struct {
-	parent   string
-	children []Node
-}
+// TODO - real dumb way to do this
+type getChildrenFunc func(dirnames []string) (map[string][]string, error)
 
-func getDirectoryContents(db db.DB, repositoryID int, commit, root string, paths []string) (map[string][]string, error) {
-	batch := []xbatch{
-		{"", []Node{makeTree(root, paths)}},
-	}
-
+// TODO - rename fn
+func getDirectoryContents(root string, paths []string, fn getChildrenFunc) (map[string][]string, error) {
 	contents := map[string][]string{}
-	for len(batch) > 0 {
 
-
-		names := []string{}
-		for _, x := range batch {
-			for _, c := range x.children {
-				names = append(names, filepath.Join(x.parent, c.dirname))
-			}
-		}
-
-		children, err := getDirectoryChildren(db, repositoryID, commit, names)
+	for batch := makeInitialRequestBatch(root, paths); len(batch) > 0; batch = batch.next(contents) {
+		batchResults, err := fn(batch.dirnames())
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO - something wrong around here
-
-		for k, v := range children {
-			contents[k] = v
-		}
-
-
-		var newBatch []xbatch
-		for _, x := range batch {
-
-			if xxx, ok := contents[x.parent]; !ok || len(xxx) == 0 {
-				continue
-			}
-
-			for _, c := range x.children {
-				newBatch = append(newBatch, xbatch{filepath.Join(x.parent, c.dirname), c.children})
+		for directory, children := range batchResults {
+			if len(children) > 0 {
+				contents[directory] = children
 			}
 		}
-		batch = newBatch
 	}
 
 	return contents, nil
 }
 
-// TODO - make a set instead
-func includes(l []string, p string) bool {
-	for _, x := range l {
-		if x == p {
-			return true
+type RequestBatch map[string][]DirTreeNode
+
+func makeInitialRequestBatch(root string, paths []string) RequestBatch {
+	node := makeTree(root, paths)
+	if root != "" {
+		return RequestBatch{"": node.Children}
+	}
+	return RequestBatch{"": []DirTreeNode{node}}
+}
+
+func (batch RequestBatch) dirnames() []string {
+	var dirnames []string
+	for nodeGroupParentPath, nodes := range batch {
+		for _, node := range nodes {
+			dirnames = append(dirnames, filepath.Join(nodeGroupParentPath, node.Name))
 		}
 	}
+	sort.Strings(dirnames)
 
-	return false
+	return dirnames
+}
+
+func (batch RequestBatch) next(contents map[string][]string) RequestBatch {
+	nextBatch := RequestBatch{}
+	for nodeGroupPath, nodes := range batch {
+		for _, node := range nodes {
+			nodePath := filepath.Join(nodeGroupPath, node.Name)
+
+			if len(node.Children) > 0 && len(contents[nodePath]) > 0 {
+				nextBatch[nodePath] = node.Children
+			}
+		}
+	}
+	return nextBatch
 }
