@@ -2,6 +2,8 @@ package converter
 
 import (
 	"fmt"
+
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 )
 
 const MaxNumResultChunks = 1000
@@ -21,7 +23,7 @@ type Reference struct {
 	Identifiers []string
 }
 
-func Convert(repositoryID int, commit, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
+func Convert(db db.DB, repositoryID int, commit, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
 	cx, err := correlate(filename, root)
 	if err != nil {
 		return nil, nil, err
@@ -29,7 +31,7 @@ func Convert(repositoryID int, commit, root, filename, newFilename string) (_ []
 
 	canonicalize(cx)
 
-	if err := Prune(repositoryID, commit, filename, cx); err != nil {
+	if err := Prune(db, repositoryID, commit, root, cx); err != nil {
 		return nil, nil, err
 	}
 

@@ -25,6 +25,17 @@ func (db *dbImpl) exec(ctx context.Context, query *sqlf.Query) error {
 	return err
 }
 
+func (db *dbImpl) RepoName(ctx context.Context, repositoryID int) (string, error) {
+	query := `SELECT name FROM repo WHERE id = %s`
+
+	// TODO - make a scan string function
+	var name string
+	if err := db.queryRow(ctx, sqlf.Sprintf(query, repositoryID)).Scan(&name); err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
 func (db *dbImpl) Dequeue(ctx context.Context) (_ Upload, _ TxCloser, _ bool, err error) {
 	selectionQuery := `
 		UPDATE lsif_uploads u SET state = 'processing', started_at = now() WHERE id = (
@@ -51,7 +62,7 @@ func (db *dbImpl) Dequeue(ctx context.Context) (_ Upload, _ TxCloser, _ bool, er
 		}
 	}()
 
-	fetchQuery := `SELECT * FROM lsif_uploads WHERE id = %s FOR UPDATE LIMIT 1`
+	fetchQuery := `SELECT u.*, NULL FROM lsif_uploads u WHERE id = %s FOR UPDATE LIMIT 1`
 	upload, err := scanUpload(tw.queryRow(ctx, sqlf.Sprintf(fetchQuery, id)))
 	if err != nil {
 		// TODO - can retry if no rows

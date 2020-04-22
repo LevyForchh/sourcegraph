@@ -158,9 +158,9 @@ var edgeHandlers = map[string]func(c *CorrelationState, id string, edge Edge) er
 	"contains":                correlateContainsEdge,
 	"next":                    correlateNextEdge,
 	"item":                    correlateItemEdge,
-	"textDocument_definition": correlateTextDocumentDefinitionEdge,
-	"textDocument_references": correlateTextDocumentReferencesEdge,
-	"textDocument_hover":      correlateTextDocumentHoverEdge,
+	"textDocument/definition": correlateTextDocumentDefinitionEdge,
+	"textDocument/references": correlateTextDocumentReferencesEdge,
+	"textDocument/hover":      correlateTextDocumentHoverEdge,
 	"moniker":                 correlateMonikerEdge,
 	"nextMoniker":             correlateNextMonikerEdge,
 	"packageInformation":      correlatePackageInformationEdge,
@@ -209,7 +209,7 @@ func correlateReferenceResult(c *CorrelationState, element Element) error {
 
 func correlateHoverResult(c *CorrelationState, element Element) error {
 	payload, err := unmarshalHoverData(element)
-	c.hoverData[element.ID] = payload.Result
+	c.hoverData[element.ID] = payload
 	return err
 }
 
@@ -261,7 +261,7 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 			if _, ok := c.rangeData[inV]; !ok {
 				return malformedDump(id, edge.InV, "range")
 			}
-			documentMap[edge.Document].add(inV)
+			documentMap.getOrCreate(edge.Document).add(inV)
 		}
 
 		return nil
@@ -275,7 +275,7 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 				if _, ok = c.rangeData[inV]; !ok {
 					return malformedDump(id, edge.InV, "range")
 				}
-				documentMap[edge.Document].add(inV)
+				documentMap.getOrCreate(edge.Document).add(inV)
 			}
 		}
 
@@ -302,7 +302,6 @@ func correlateTextDocumentDefinitionEdge(c *CorrelationState, id string, edge Ed
 	} else {
 		return malformedDump(id, edge.OutV, "range", "resultSet")
 	}
-
 	return nil
 }
 

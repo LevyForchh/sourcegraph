@@ -95,11 +95,15 @@ func canonicalizeReferenceResults(cx *CorrelationState) {
 	}
 
 	for id, item := range cx.rangeData {
-		cx.rangeData[id] = item.setReferenceResultID(referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID])
+		if canonicalID, ok := referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID]; ok {
+			cx.rangeData[id] = item.setReferenceResultID(canonicalID)
+		}
 	}
 
 	for id, item := range cx.resultSetData {
-		cx.resultSetData[id] = item.setReferenceResultID(referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID])
+		if canonicalID, ok := referenceResultIDToCanonicalReferenceResultIDs[item.ReferenceResultID]; ok {
+			cx.resultSetData[id] = item.setReferenceResultID(canonicalID)
+		}
 	}
 
 	canonicalReferenceResultIDs := map[string]struct{}{}
@@ -130,7 +134,8 @@ func canonicalizeRanges(cx *CorrelationState) {
 			rangeData = mergeNextRangeData(rangeData, nextItem)
 		}
 
-		cx.rangeData[rangeID] = rangeData.setMonikerIDs(gatherMonikers(cx, rangeData.MonikerIDs))
+		rd := rangeData.setMonikerIDs(gatherMonikers(cx, rangeData.MonikerIDs))
+		cx.rangeData[rangeID] = rd
 	}
 }
 
@@ -178,7 +183,7 @@ func gatherMonikers(cx *CorrelationState, source idSet) idSet {
 	monikers := newIDSet()
 	if canonicalID, ok := source.choose(); ok {
 		for id := range cx.linkedMonikers.extractSet(canonicalID) {
-			if data := cx.monikerData[id]; data.Kind != "local" {
+			if cx.monikerData[id].Kind != "local" {
 				monikers.add(id)
 			}
 		}

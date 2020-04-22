@@ -14,34 +14,46 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 )
 
+type WorkerOpts struct {
+	DB                  db.DB
+	BundleManagerClient bundles.BundleManagerClient
+	PollInterval        time.Duration
+}
+
 type Worker struct {
 	db                  db.DB
 	bundleManagerClient bundles.BundleManagerClient
+	pollInterval        time.Duration
 }
 
-func New(db db.DB, bundleManagerClient bundles.BundleManagerClient) *Worker {
+func New(opts WorkerOpts) *Worker {
 	return &Worker{
-		db:                  db,
-		bundleManagerClient: bundleManagerClient,
+		db:                  opts.DB,
+		bundleManagerClient: opts.BundleManagerClient,
+		pollInterval:        opts.PollInterval,
 	}
 }
 
 func (w *Worker) Start() error {
 	for {
+		fmt.Printf("BUMPIN\n")
+
 		upload, closer, ok, err := w.db.Dequeue(context.Background())
 		if err != nil {
 			return err
 		}
-
 		if !ok {
-			// TODO - backoff instead
-			time.Sleep(time.Second)
+			time.Sleep(w.pollInterval)
 			continue
 		}
 
+		fmt.Printf("Processing\n")
 		if err := w.process(upload, closer); err != nil {
+			fmt.Printf("FAILED TO PROCESS: %#v\n", err)
 			return err
 		}
+
+		fmt.Printf("PROCESSED!\n")
 	}
 }
 
@@ -71,12 +83,11 @@ func (w *Worker) process(upload db.Upload, closer db.TxCloser) (err error) {
 	}
 	newFilename := filepath.Join(name, uuid.String())
 
-	packages, refs, err := converter.Convert(upload.RepositoryID, upload.Commit, upload.Root, filename, newFilename)
-	if err != nil {
-		return err
+	// packages, refs
+	_, _, err2 := converter.Convert(w.db, upload.RepositoryID, upload.Commit, upload.Root, filename, newFilename)
+	if err2 != nil {
+		return err2
 	}
-
-	fmt.Printf("> %#v\n> %#v\n", packages, refs)
 
 	// TODO - TW
 	// TODO - unify types here

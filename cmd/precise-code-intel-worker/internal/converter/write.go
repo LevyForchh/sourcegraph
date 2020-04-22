@@ -16,21 +16,39 @@ func Write(cx *CorrelationState, filename string) (err error) {
 	defer func() {
 		closeErr := db.Close()
 		if err != nil {
-			// TODO_ wrap error
+			// TODO - wrap error
 		} else {
 			err = closeErr
 		}
 	}()
 
+	stmts := []string{
+		`CREATE TABLE "definitions" ("id" integer PRIMARY KEY NOT NULL, "scheme" text NOT NULL, "identifier" text NOT NULL, "documentPath" text NOT NULL, "startLine" integer NOT NULL, "endLine" integer NOT NULL, "startCharacter" integer NOT NULL, "endCharacter" integer NOT NULL)`,
+		`CREATE TABLE "documents" ("path" text PRIMARY KEY NOT NULL, "data" blob NOT NULL)`,
+		`CREATE TABLE "meta" ("id" integer PRIMARY KEY NOT NULL, "lsifVersion" text NOT NULL, "sourcegraphVersion" text NOT NULL, "numResultChunks" integer NOT NULL)`,
+		`CREATE TABLE "references" ("id" integer PRIMARY KEY NOT NULL, "scheme" text NOT NULL, "identifier" text NOT NULL, "documentPath" text NOT NULL, "startLine" integer NOT NULL, "endLine" integer NOT NULL, "startCharacter" integer NOT NULL, "endCharacter" integer NOT NULL)`,
+		`CREATE TABLE "resultChunks" ("id" integer PRIMARY KEY NOT NULL, "data" blob NOT NULL)`,
+		`CREATE INDEX "IDX_76acf10194cd8b02410540f95f" ON "definitions" ("scheme", "identifier")`,
+		`CREATE INDEX "IDX_999100e25f3e24797fda20e537" ON "references" ("scheme", "identifier")`,
+	}
+
+	for _, stmt := range stmts {
+		// TODO - create indexes after insertion
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
 	// Calculate the number of result chunks that we'll attempt to populate
 	numResults := len(cx.definitionData) + len(cx.referenceData)
 	numResultChunks := int(math.Min(MaxNumResultChunks, math.Max(1, math.Floor(float64(numResults)/ResultsPerResultChunk))))
 
-	metadataTableInserter := sqliteutil.NewBatchInserter(db, "metaData", "lsifVersion", "sourcegraphVersion", "numResultChunks")
+	// TODO - insert inside a txn
+	metadataTableInserter := sqliteutil.NewBatchInserter(db, "meta", "lsifVersion", "sourcegraphVersion", "numResultChunks")
 	documentsTableInserter := sqliteutil.NewBatchInserter(db, "documents", "path", "data")
-	resultChunksTableInserter := sqliteutil.NewBatchInserter(db, "resultChunks", "path", "data")
+	resultChunksTableInserter := sqliteutil.NewBatchInserter(db, "resultChunks", "id", "data")
 	definitionsTableInserter := sqliteutil.NewBatchInserter(db, "definitions", "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
-	referencesTableInserter := sqliteutil.NewBatchInserter(db, "references", "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
+	referencesTableInserter := sqliteutil.NewBatchInserter(db, `"references"`, "scheme", "identifier", "documentPath", "startLine", "endLine", "startCharacter", "endCharacter")
 
 	// TODO - make an iterator
 	fns := []func() error{
@@ -141,7 +159,14 @@ type DocumentIDRangeID struct {
 }
 
 func populateResultChunksTable(cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
-	resultChunks := make([]ResultChunk, numResultChunks)
+	var resultChunks []ResultChunk
+	for i := 0; i < numResultChunks; i++ {
+		resultChunks = append(resultChunks, ResultChunk{
+			Paths:              map[string]string{},
+			DocumentIDRangeIDs: map[string][]DocumentIDRangeID{},
+		})
+	}
+
 	addToChunk(cx, resultChunks, cx.definitionData)
 	addToChunk(cx, resultChunks, cx.referenceData)
 
@@ -170,8 +195,7 @@ func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[strin
 		for documentID, rangeIDs := range documentRanges {
 			doc, ok := cx.documentData[documentID]
 			if !ok {
-				// not in git
-				continue
+				panic("Should not happen")
 			}
 
 			for rangeID := range rangeIDs {
@@ -219,7 +243,7 @@ func populateReferencesTable(cx *CorrelationState, inserter *sqliteutil.BatchIns
 		}
 	}
 
-	return insertMonikerRanges(cx, cx.definitionData, referenceMonikers, inserter)
+	return insertMonikerRanges(cx, cx.referenceData, referenceMonikers, inserter)
 }
 
 func insertMonikerRanges(cx *CorrelationState, data map[string]defaultIDSetMap, monikers defaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
@@ -237,8 +261,12 @@ func insertMonikerRanges(cx *CorrelationState, data map[string]defaultIDSetMap, 
 			moniker := cx.monikerData[monikerID]
 
 			for documentID, rangeIDs := range documentRanges {
+
 				doc, ok := cx.documentData[documentID]
-				if !ok || strings.HasPrefix(doc.URI, "..") {
+				if !ok {
+					panic("Should not happen")
+				}
+				if strings.HasPrefix(doc.URI, "..") {
 					// Skip definitions or references that point to a document that are not
 					// present in the dump. Including this would cause a query that always
 					// fails when it cannot resolve the missing document data.

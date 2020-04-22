@@ -42,9 +42,9 @@ func (i *BatchInserter) Insert(values ...interface{}) error {
 
 func (i *BatchInserter) Flush() error {
 	if len(i.batches) < i.maxBatchesBeforeFlush {
-		return i.flushPartial()
+		return i.flushFull()
 	}
-	return i.flushFull()
+	return i.flushPartial()
 }
 
 func (i *BatchInserter) flushFull() error {
@@ -61,7 +61,11 @@ func (i *BatchInserter) flushPartial() error {
 }
 
 func (i *BatchInserter) write(batch [][]interface{}) error {
-	query := "INSERT INTO " + i.tableName + " (" + strings.Join(i.columnNames, ", ") + ") VALUES (%s)"
+	if len(batch) == 0 {
+		return nil
+	}
+
+	query := "INSERT INTO " + i.tableName + " (" + strings.Join(i.columnNames, ", ") + ") VALUES %s"
 
 	var queries []*sqlf.Query
 	for _, args := range batch {
@@ -74,6 +78,7 @@ func (i *BatchInserter) write(batch [][]interface{}) error {
 	}
 
 	qx := sqlf.Sprintf(query, sqlf.Join(queries, ","))
+
 	_, err := i.db.ExecContext(context.Background(), qx.Query(sqlf.SimpleBindVar), qx.Args()...)
 	return err
 }

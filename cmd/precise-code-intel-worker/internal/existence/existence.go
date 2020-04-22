@@ -2,6 +2,8 @@ package existence
 
 import (
 	"path/filepath"
+
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 )
 
 type ExistenceChecker struct {
@@ -9,8 +11,8 @@ type ExistenceChecker struct {
 	dirContents map[string][]string
 }
 
-func NewExistenceChecker(repositoryID int, commit, root string, paths []string) (*ExistenceChecker, error) {
-	dirContents, err := getDirectoryContents(repositoryID, commit, root, paths)
+func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths []string) (*ExistenceChecker, error) {
+	dirContents, err := getDirectoryContents(db, repositoryID, commit, root, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -32,13 +34,15 @@ type xbatch struct {
 	children []Node
 }
 
-func getDirectoryContents(repositoryID int, commit, root string, paths []string) (map[string][]string, error) {
+func getDirectoryContents(db db.DB, repositoryID int, commit, root string, paths []string) (map[string][]string, error) {
 	batch := []xbatch{
-		{"", makeTree(root, paths).children},
+		{"", []Node{makeTree(root, paths)}},
 	}
 
 	contents := map[string][]string{}
 	for len(batch) > 0 {
+
+
 		names := []string{}
 		for _, x := range batch {
 			for _, c := range x.children {
@@ -46,18 +50,22 @@ func getDirectoryContents(repositoryID int, commit, root string, paths []string)
 			}
 		}
 
-		children, err := getDirectoryChildren(repositoryID, commit, names)
+		children, err := getDirectoryChildren(db, repositoryID, commit, names)
 		if err != nil {
 			return nil, err
 		}
+
+		// TODO - something wrong around here
 
 		for k, v := range children {
 			contents[k] = v
 		}
 
+
 		var newBatch []xbatch
 		for _, x := range batch {
-			if children, ok := children[x.parent]; !ok || len(children) == 0 {
+
+			if xxx, ok := contents[x.parent]; !ok || len(xxx) == 0 {
 				continue
 			}
 
@@ -71,7 +79,7 @@ func getDirectoryContents(repositoryID int, commit, root string, paths []string)
 	return contents, nil
 }
 
-// TODO - make a set instea
+// TODO - make a set instead
 func includes(l []string, p string) bool {
 	for _, x := range l {
 		if x == p {

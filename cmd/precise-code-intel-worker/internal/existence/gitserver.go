@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sourcegraph/sourcegraph/cmd/frontend/db"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/gitserver"
 )
 
-func getDirectoryChildren(repositoryID int, commit string, dirnames []string) (map[string][]string, error) {
+func getDirectoryChildren(db db.DB, repositoryID int, commit string, dirnames []string) (map[string][]string, error) {
 	args := []string{"ls-tree", "--name-only", commit, "--"}
 	for _, dir := range dirnames {
 		if dir == "" {
@@ -24,13 +24,13 @@ func getDirectoryChildren(repositoryID int, commit string, dirnames []string) (m
 		}
 	}
 
-	repo, err := db.Repos.Get(context.Background(), api.RepoID(repositoryID))
+	repoName, err := db.RepoName(context.Background(), repositoryID)
 	if err != nil {
 		return nil, err
 	}
 
 	cmd := gitserver.DefaultClient.Command("git", args...)
-	cmd.Repo = gitserver.Repo{Name: repo.Name}
+	cmd.Repo = gitserver.Repo{Name: api.RepoName(repoName)}
 	out, err := cmd.CombinedOutput(context.Background())
 	if err != nil {
 		return nil, err
@@ -39,8 +39,8 @@ func getDirectoryChildren(repositoryID int, commit string, dirnames []string) (m
 	childrenMap := map[string][]string{}
 	allDudes := strings.Split(string(bytes.TrimSpace(out)), "\n")
 
-	for _, line := range allDudes {
-		if line == "" {
+	for _, dir := range dirnames {
+		if dir == "" {
 			var children []string
 			for _, dude := range allDudes {
 				if !strings.Contains(dude, "/") {
@@ -48,16 +48,16 @@ func getDirectoryChildren(repositoryID int, commit string, dirnames []string) (m
 				}
 			}
 
-			childrenMap[line] = children
+			childrenMap[dir] = children
 		} else {
 			var children []string
 			for _, dude := range allDudes {
-				if strings.HasPrefix(dude, line) {
+				if strings.HasPrefix(dude, dir) {
 					children = append(children, dude)
 				}
 			}
 
-			childrenMap[line] = children
+			childrenMap[dir] = children
 		}
 	}
 
@@ -67,10 +67,9 @@ func getDirectoryChildren(repositoryID int, commit string, dirnames []string) (m
 //
 // TODO - move this to another guy
 
-func getCommitsNear(repositoryID int, commit string) (map[string][]string, error) {
+func getCommitsNear(db db.DB, repositoryID int, commit string) (map[string][]string, error) {
 	// TODO
-
-	repo, err := db.Repos.Get(context.Background(), api.RepoID(repositoryID))
+	repoName, err := db.RepoName(context.Background(), repositoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,7 @@ func getCommitsNear(repositoryID int, commit string) (map[string][]string, error
 	const MaxCommitsPerUpdate = 150 // MAX_TRAVERSAL_LIMIT * 1.5
 
 	cmd := gitserver.DefaultClient.Command("git", "log", "--pretty=%H %P", commit, fmt.Sprintf("-%d", MaxCommitsPerUpdate))
-	cmd.Repo = gitserver.Repo{Name: repo.Name}
+	cmd.Repo = gitserver.Repo{Name: api.RepoName(repoName)}
 	out, err := cmd.CombinedOutput(context.Background())
 	if err != nil {
 		return nil, err

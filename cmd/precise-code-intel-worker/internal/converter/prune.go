@@ -1,14 +1,17 @@
 package converter
 
-import "github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
+import (
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
+)
 
-func Prune(repositoryID int, commit, root string, cx *CorrelationState) error {
+func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState) error {
 	var paths []string
 	for _, doc := range cx.documentData {
 		paths = append(paths, doc.URI)
 	}
 
-	ec, err := existence.NewExistenceChecker(repositoryID, commit, root, paths)
+	ec, err := existence.NewExistenceChecker(db, repositoryID, commit, root, paths)
 	if err != nil {
 		return err
 	}
@@ -26,8 +29,7 @@ func Prune(repositoryID int, commit, root string, cx *CorrelationState) error {
 
 	for _, documentRanges := range cx.definitionData {
 		for documentID := range documentRanges {
-			doc, ok := cx.documentData[documentID]
-			if !ok || !ec.ShouldInclude(doc.URI) {
+			if _, ok := cx.documentData[documentID]; !ok {
 				// Skip pointing to locations that are not available in git. This can occur
 				// with indexers that point to generated files or dependencies that are not
 				// committed (e.g. node_modules). Keeping these in the dump can cause the
@@ -39,8 +41,7 @@ func Prune(repositoryID int, commit, root string, cx *CorrelationState) error {
 
 	for _, documentRanges := range cx.referenceData {
 		for documentID := range documentRanges {
-			doc, ok := cx.documentData[documentID]
-			if !ok || !ec.ShouldInclude(doc.URI) {
+			if _, ok := cx.documentData[documentID]; !ok {
 				// Skip pointing to locations that are not available in git. This can occur
 				// with indexers that point to generated files or dependencies that are not
 				// committed (e.g. node_modules). Keeping these in the dump can cause the
