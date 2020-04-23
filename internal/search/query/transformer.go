@@ -4,7 +4,29 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 )
+
+// SubstituteAliases substitutes field name aliases for their canonical names.
+func SubstituteAliases(nodes []Node) []Node {
+	aliases := map[string]string{
+		"r":        FieldRepo,
+		"g":        FieldRepoGroup,
+		"f":        FieldFile,
+		"l":        FieldLang,
+		"language": FieldLang,
+		"since":    FieldAfter,
+		"until":    FieldBefore,
+		"m":        FieldMessage,
+		"msg":      FieldMessage,
+	}
+	return MapParameter(nodes, func(field, value string, negated bool) Node {
+		if canonical, ok := aliases[field]; ok {
+			field = canonical
+		}
+		return Parameter{Field: field, Value: value, Negated: negated}
+	})
+}
 
 // LowercaseFieldNames performs strings.ToLower on every field name.
 func LowercaseFieldNames(nodes []Node) []Node {
@@ -60,4 +82,30 @@ func Hoist(nodes []Node) ([]Node, error) {
 		pattern = append(pattern, node)
 	}
 	return append(scopeParameters, newOperator(pattern, expression.Kind)...), nil
+}
+
+// SearchUpperCase adds case:yes to queries if any pattern is mixed-case.
+func SearchUpperCase(nodes []Node) []Node {
+	var foundMixedCase bool
+	VisitParameter(nodes, func(field, value string, negated, _ bool) {
+		if field == "" || field == "content" {
+			if match := containsUpperCase(value); match {
+				foundMixedCase = true
+			}
+		}
+	})
+	if foundMixedCase {
+		nodes = append(nodes, Parameter{Field: "case", Value: "yes"})
+		return newOperator(nodes, And)
+	}
+	return nodes
+}
+
+func containsUpperCase(s string) bool {
+	for _, r := range s {
+		if unicode.IsUpper(r) && unicode.IsLetter(r) {
+			return true
+		}
+	}
+	return false
 }
