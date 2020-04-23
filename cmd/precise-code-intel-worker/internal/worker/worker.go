@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/bundles"
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/commits"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/converter"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/gitserver"
 )
 
 type WorkerOpts struct {
@@ -92,8 +92,12 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 	}
 	newFilename := filepath.Join(name, uuid.String())
 
+	fn := func(dirnames []string) (map[string][]string, error) {
+		return gitserver.DirectoryChildren(w.db, upload.RepositoryID, upload.Commit, dirnames)
+	}
+
 	// packages, refs
-	packages, references, err2 := converter.Convert(w.db, upload.RepositoryID, upload.Commit, upload.Root, filename, newFilename)
+	packages, references, err2 := converter.Convert(fn, upload.Root, filename, newFilename)
 	if err2 != nil {
 		return err2
 	}
@@ -123,12 +127,12 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 		return err
 	}
 
-	tipCommit, err := commits.Head(w.db, upload.RepositoryID)
+	tipCommit, err := gitserver.Head(w.db, upload.RepositoryID)
 	if err != nil {
 		return err
 	}
 
-	newCommits, err := commits.CommitsNear(w.db, upload.RepositoryID, tipCommit)
+	newCommits, err := gitserver.CommitsNear(w.db, upload.RepositoryID, tipCommit)
 	if err != nil {
 		return err
 	}
@@ -139,7 +143,7 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 		// determine what is visible from the tip. If we do not do this before the
 		// updateDumpsVisibleFromTip call below, no dumps will be reachable from
 		// the tip and all dumps will be invisible.
-		additionalCommits, err := commits.CommitsNear(w.db, upload.RepositoryID, upload.Commit)
+		additionalCommits, err := gitserver.CommitsNear(w.db, upload.RepositoryID, upload.Commit)
 		if err != nil {
 			return err
 		}

@@ -1,4 +1,4 @@
-package existence
+package gitserver
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/gitserver"
 )
 
-func getDirectoryChildren(db db.DB, repositoryID int, commit string, dirnames []string) (map[string][]string, error) {
+func DirectoryChildren(db db.DB, repositoryID int, commit string, dirnames []string) (map[string][]string, error) {
 	repoName, err := db.RepoName(context.Background(), repositoryID)
 	if err != nil {
 		return nil, err

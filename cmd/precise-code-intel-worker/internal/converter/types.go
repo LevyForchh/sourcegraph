@@ -59,7 +59,7 @@ func unmarshalMetaData(element Element, dumpRoot string) (payload MetaData, err 
 	}
 
 	if dumpRoot != "" && !strings.HasPrefix(payload.ProjectRoot, dumpRoot) {
-		payload.ProjectRoot += "/" + dumpRoot
+		payload.ProjectRoot += dumpRoot
 	}
 
 	return
@@ -178,8 +178,11 @@ func (d RangeData) setMonikerIDs(ids idSet) RangeData {
 //
 
 func unmarshalHoverData(element Element) (string, error) {
+	type HoverResult struct {
+		Contents json.RawMessage `json:"contents"`
+	}
 	type HoverVertex struct {
-		Result json.RawMessage `json:"result"`
+		Result HoverResult `json:"result"`
 	}
 
 	var payload HoverVertex
@@ -187,7 +190,7 @@ func unmarshalHoverData(element Element) (string, error) {
 		return "", err
 	}
 
-	return unmarshalHover(payload.Result)
+	return unmarshalHover(payload.Result.Contents)
 }
 
 func unmarshalHover(blah json.RawMessage) (string, error) {

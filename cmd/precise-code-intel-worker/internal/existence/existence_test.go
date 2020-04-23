@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestGetDirectoryContents(t *testing.T) {
+func TestDirectoryContents(t *testing.T) {
 	gitContentsOracle := map[string][]string{
 		"":           {"web/"},
 		"web":        {"web/core/", "web/shared/"},
@@ -39,7 +39,7 @@ func TestGetDirectoryContents(t *testing.T) {
 		paths = append(paths, fmt.Sprintf("web/node_modules/%d/deeply/nested/lib/file.ts", i))
 	}
 
-	values, err := getDirectoryContents("", paths, mockGetChildrenFunc)
+	values, err := directoryContents("", paths, mockGetChildrenFunc)
 	if err != nil {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}
@@ -77,7 +77,7 @@ func TestGetDirectoryContents(t *testing.T) {
 	}
 }
 
-func TestGetDirectoryContentsWithRoot(t *testing.T) {
+func TestDirectoryContentsWithRoot(t *testing.T) {
 	gitContentsOracle := map[string][]string{
 		"":                {"root/"},
 		"root":            {"root/web/"},
@@ -106,7 +106,7 @@ func TestGetDirectoryContentsWithRoot(t *testing.T) {
 		"web/shared/quux.generated.ts",
 	}
 
-	values, err := getDirectoryContents("root", paths, mockGetChildrenFunc)
+	values, err := directoryContents("root", paths, mockGetChildrenFunc)
 	if err != nil {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}

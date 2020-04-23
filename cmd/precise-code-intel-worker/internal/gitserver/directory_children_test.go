@@ -1,4 +1,4 @@
-package existence
+package gitserver
 
 import (
 	"testing"

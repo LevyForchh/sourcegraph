@@ -3,7 +3,7 @@ package converter
 import (
 	"fmt"
 
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
 )
 
 const MaxNumResultChunks = 1000
@@ -23,7 +23,7 @@ type Reference struct {
 	Identifiers []string
 }
 
-func Convert(db db.DB, repositoryID int, commit, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
+func Convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
 	cx, err := correlate(filename, root)
 	if err != nil {
 		return nil, nil, err
@@ -31,7 +31,7 @@ func Convert(db db.DB, repositoryID int, commit, root, filename, newFilename str
 
 	canonicalize(cx)
 
-	if err := Prune(db, repositoryID, commit, root, cx); err != nil {
+	if err := Prune(fn, root, cx); err != nil {
 		return nil, nil, err
 	}
 

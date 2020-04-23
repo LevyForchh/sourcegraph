@@ -1,18 +1,16 @@
 package converter
 
 import (
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
 )
 
-func Prune(db db.DB, repositoryID int, commit, root string, cx *CorrelationState) error {
+func Prune(fn existence.GetChildrenFunc, root string, cx *CorrelationState) error {
 	var paths []string
 	for _, doc := range cx.DocumentData {
 		paths = append(paths, doc.URI)
 	}
 
-	// TODO - need to factor this stuff out
-	ec, err := existence.NewExistenceChecker(db, repositoryID, commit, root, paths)
+	ec, err := existence.NewExistenceChecker(root, paths, fn)
 	if err != nil {
 		return err
 	}

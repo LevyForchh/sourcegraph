@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -58,7 +59,7 @@ type ErrMalformedDump struct {
 
 func (e ErrMalformedDump) Error() string {
 	// TODO
-	return fmt.Sprintf("oh geesh")
+	return fmt.Sprintf("oh geesh: %s %s %v", e.ID, e.References, e.Kinds)
 }
 
 func malformedDump(id, references string, kinds ...string) error {
@@ -81,12 +82,17 @@ func correlate(filename, root string) (*CorrelationState, error) {
 		return nil, err
 	}
 
+	return correlateFromReader(root, gzipReader)
+}
+
+func correlateFromReader(root string, r io.Reader) (*CorrelationState, error) {
 	cx := newCorrelationState(root)
-	scanner := bufio.NewScanner(gzipReader)
+	scanner := bufio.NewScanner(r)
 	scanner.Split(bufio.ScanLines)
 
 	for scanner.Scan() {
-		element, err := unmarshalElement(scanner.Bytes())
+		bx := scanner.Bytes()
+		element, err := unmarshalElement(bx)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +121,7 @@ func correlateElement(state *CorrelationState, element Element) error {
 		return correlateEdge(state, element)
 	}
 
-	return fmt.Errorf("unknown elemeent type %s", element.Type)
+	return fmt.Errorf("unknown element type %s", element.Type)
 }
 
 func correlateVertex(state *CorrelationState, element Element) error {

@@ -3,40 +3,37 @@ package existence
 import (
 	"path/filepath"
 	"sort"
-
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
 )
 
 type ExistenceChecker struct {
-	root        string
-	dirContents map[string]map[string]struct{}
+	root              string
+	directoryContents map[string]map[string]struct{}
 }
 
-func NewExistenceChecker(db db.DB, repositoryID int, commit, root string, paths []string) (*ExistenceChecker, error) {
-	dirContents, err := getDirectoryContents(root, paths, func(dirnames []string) (map[string][]string, error) {
-		return getDirectoryChildren(db, repositoryID, commit, paths)
-	})
+// TODO - rename
+type GetChildrenFunc func(dirnames []string) (map[string][]string, error)
+
+func NewExistenceChecker(root string, paths []string, fn GetChildrenFunc) (*ExistenceChecker, error) {
+	directoryContents, err := directoryContents(root, paths, fn)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ExistenceChecker{root, dirContents}, nil
+	return &ExistenceChecker{root, directoryContents}, nil
 }
 
 func (ec *ExistenceChecker) ShouldInclude(path string) bool {
-	children, ok := ec.dirContents[dirWithoutDot(filepath.Join(ec.root, path))]
-	if !ok {
-		return false
+	if children, ok := ec.directoryContents[dirWithoutDot(filepath.Join(ec.root, path))]; ok {
+		if _, ok := children[path]; ok {
+			return true
+		}
 	}
-	_, ok = children[path]
-	return ok
+
+	return false
 }
 
-// TODO - real dumb way to do this
-type getChildrenFunc func(dirnames []string) (map[string][]string, error)
-
 // TODO - rename fn
-func getDirectoryContents(root string, paths []string, fn getChildrenFunc) (map[string]map[string]struct{}, error) {
+func directoryContents(root string, paths []string, fn GetChildrenFunc) (map[string]map[string]struct{}, error) {
 	contents := map[string]map[string]struct{}{}
 
 	for batch := makeInitialRequestBatch(root, paths); len(batch) > 0; batch = batch.next(contents) {
