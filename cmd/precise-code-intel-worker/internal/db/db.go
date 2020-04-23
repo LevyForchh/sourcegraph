@@ -11,6 +11,8 @@ type JobHandle interface {
 	TxCloser
 
 	Tx() *sql.Tx
+	Savepoint() error
+	RollbackToLastSavepoint() error
 	MarkComplete() error
 	MarkErrored(failureSummary, failureStacktrace string) error
 }

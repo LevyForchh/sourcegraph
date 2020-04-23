@@ -118,9 +118,16 @@ func (w *Worker) process(ctx context.Context, upload db.Upload, jobHandle db.Job
 		return err
 	}
 
-	// TODO - do everything below here in a nested transaction so we can
-	// mark it as failed without deleting dumps or updating visibility
-	// on a late processing failure
+	if err := jobHandle.Savepoint(); err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if rollbackErr := jobHandle.RollbackToLastSavepoint(); rollbackErr != nil {
+				err = multierror.Append(err, rollbackErr)
+			}
+		}
+	}()
 
 	if err := w.db.DeleteOverlappingDumps(ctx, jobHandle.Tx(), upload.RepositoryID, upload.Commit, upload.Root, upload.Indexer); err != nil {
 		return err

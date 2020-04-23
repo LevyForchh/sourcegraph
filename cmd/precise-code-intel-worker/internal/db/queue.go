@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/keegancsmith/sqlf"
 )
 
@@ -66,12 +68,15 @@ func (db *dbImpl) dequeue(ctx context.Context, id int) (_ Upload, _ JobHandle, _
 }
 
 type jobHandleImpl struct {
-	ctx      context.Context
-	id       int
-	tw       *transactionWrapper
-	txCloser TxCloser
-	marked   bool
+	ctx        context.Context
+	id         int
+	tw         *transactionWrapper
+	txCloser   TxCloser
+	marked     bool
+	savepoints []string
 }
+
+var _ JobHandle = &jobHandleImpl{}
 
 func (h *jobHandleImpl) CloseTx(err error) error {
 	if err == nil && !h.marked {
@@ -83,6 +88,29 @@ func (h *jobHandleImpl) CloseTx(err error) error {
 
 func (h *jobHandleImpl) Tx() *sql.Tx {
 	return h.tw.tx
+}
+
+func (h *jobHandleImpl) Savepoint() error {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return err
+	}
+
+	savepointID := strings.ReplaceAll(id.String(), "-", "_")
+	h.savepoints = append(h.savepoints, savepointID)
+	_, err = h.tw.exec(h.ctx, sqlf.Sprintf(`SAVEPOINT %s`, savepointID))
+	return err
+}
+
+func (h *jobHandleImpl) RollbackToLastSavepoint() error {
+	if n := len(h.savepoints); n > 0 {
+		var savepointID string
+		savepointID, h.savepoints = h.savepoints[n-1], h.savepoints[:n-1]
+		_, err := h.tw.exec(h.ctx, sqlf.Sprintf(`ROLLBACK TO SAVEPOINT %s`, savepointID))
+		return err
+	}
+
+	return fmt.Errorf("no savepoint defined")
 }
 
 func (h *jobHandleImpl) MarkComplete() (err error) {
