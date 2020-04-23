@@ -24,7 +24,7 @@ type Execable interface {
 
 func NewBatchInserter(db Execable, tableName string, columnNames ...string) *BatchInserter {
 	numColumns := len(columnNames)
-	maxBatchSize := (MaxNumSqliteParameters / numColumns) *numColumns
+	maxBatchSize := (MaxNumSqliteParameters / numColumns) * numColumns
 
 	placeholders := make([]string, numColumns)
 	quotedColumnNames := make([]string, numColumns)
@@ -78,9 +78,9 @@ func (bi *BatchInserter) Flush(ctx context.Context) error {
 func (bi *BatchInserter) pop() (batch []interface{}) {
 	if len(bi.batch) < bi.maxBatchSize {
 		batch, bi.batch = bi.batch, bi.batch[:0]
-		return
+		return batch
 	}
 
 	batch, bi.batch = bi.batch[:bi.maxBatchSize], bi.batch[bi.maxBatchSize:]
-	return
+	return batch
 }

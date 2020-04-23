@@ -29,7 +29,7 @@ func (db *dbImpl) exec(ctx context.Context, query *sqlf.Query) error {
 // scanString populates an string value from the given scanner.
 func scanString(scanner Scanner) (value string, err error) {
 	err = scanner.Scan(&value)
-	return
+	return value, err
 }
 
 func (db *dbImpl) UpdateDumpsVisibleFromTip(ctx context.Context, tw *transactionWrapper, repositoryID int, tipCommit string) error {

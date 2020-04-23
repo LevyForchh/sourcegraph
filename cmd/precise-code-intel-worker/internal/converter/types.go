@@ -16,7 +16,7 @@ type Element struct {
 func unmarshalElement(Raw []byte) (payload Element, err error) {
 	err = json.Unmarshal(Raw, &payload)
 	payload.Raw = json.RawMessage(Raw)
-	return
+	return payload, err
 }
 
 //
@@ -31,7 +31,7 @@ type Edge struct {
 
 func unmarshalEdge(element Element) (payload Edge, err error) {
 	err = json.Unmarshal(element.Raw, &payload)
-	return
+	return payload, err
 }
 
 //
@@ -62,7 +62,7 @@ func unmarshalMetaData(element Element, dumpRoot string) (payload MetaData, err 
 		payload.ProjectRoot += dumpRoot
 	}
 
-	return
+	return payload, err
 }
 
 //
@@ -80,7 +80,7 @@ func unmarshalDocumentData(element Element, projectRoot string) (payload Documen
 	}
 	payload.URI = payload.URI[len(projectRoot):]
 	payload.Contains = idSet{}
-	return
+	return payload, err
 }
 
 //
@@ -249,7 +249,7 @@ func unmarshalMonikerData(element Element) (payload MonikerData, err error) {
 	if payload.Kind == "" {
 		payload.Kind = "local"
 	}
-	return
+	return payload, err
 }
 
 func (d MonikerData) setPackageInformationID(id string) MonikerData {
@@ -271,7 +271,7 @@ type PackageInformationData struct {
 
 func unmarshalPackageInformationData(element Element) (payload PackageInformationData, err error) {
 	err = json.Unmarshal(element.Raw, &payload)
-	return
+	return payload, err
 }
 
 //
