@@ -6,10 +6,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
 )
 
-const MaxNumResultChunks = 1000
-const ResultsPerResultChunk = 500
-const InternalVersion = "0.1.0"
-
 type Package struct {
 	Scheme  string
 	Name    string
@@ -39,6 +35,10 @@ func Convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (
 		return nil, nil, err
 	}
 
+	return packages(cx), references(cx), nil
+}
+
+func packages(cx *CorrelationState) []Package {
 	// TODO - de-duplicate
 	var packages []Package
 	for id := range cx.ExportedMonikers {
@@ -51,7 +51,10 @@ func Convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (
 		})
 	}
 
-	// TODO - flatten
+	return packages
+}
+
+func references(cx *CorrelationState) []Reference {
 	references := map[string]Reference{}
 	for id := range cx.ImportedMonikers {
 		source := cx.MonikerData[id]
@@ -70,5 +73,5 @@ func Convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (
 		refs = append(refs, ref)
 	}
 
-	return packages, refs, nil
+	return refs
 }

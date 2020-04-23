@@ -19,7 +19,7 @@ func (db *dbImpl) UpdateCommits(ctx context.Context, repositoryID int, commits m
 	}
 
 	// TODO - test conflict
-	query := `INSERT INTO lsif_commits (repository_id, "commit", parent_commit) VALUES %s`
+	query := `INSERT INTO lsif_commits (repository_id, "commit", parent_commit) VALUES %s ON CONFLICT DO NOTHING`
 	if err := db.exec(ctx, sqlf.Sprintf(query, sqlf.Join(rows, ","))); err != nil {
 		return err
 	}
