@@ -32,10 +32,11 @@ func (set idSet) keys() []string {
 }
 
 func (set idSet) choose() (string, bool) {
-	for k := range set {
-		return k, true
+	if len(set) == 0 {
+		return "", false
 	}
-	return "", false
+
+	return set.keys()[0], true
 }
 
 //

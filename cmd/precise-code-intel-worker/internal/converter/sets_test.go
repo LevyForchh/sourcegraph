@@ -23,14 +23,20 @@ func TestIDSet(t *testing.T) {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
 
-	for i := 0; i < 100; i++ {
-		val, ok := ids2.choose()
-		if !ok {
-			t.Errorf("expected a value to be chosen")
-		} else {
-			if !ids2.contains(val) {
-				t.Errorf("chosen value %s not in set", val)
-			}
+	if value, ok := ids2.choose(); !ok {
+		t.Errorf("expected a value to be chosen")
+	} else {
+		if value != "bar" {
+			t.Errorf("unexpected chosen value. want=%s have=%s", "bar", value)
+		}
+	}
+
+	ids2.add("alpha")
+	if value, ok := ids2.choose(); !ok {
+		t.Errorf("expected a value to be chosen")
+	} else {
+		if value != "alpha" {
+			t.Errorf("unexpected chosen value. want=%s have=%s", "alpha", value)
 		}
 	}
 }

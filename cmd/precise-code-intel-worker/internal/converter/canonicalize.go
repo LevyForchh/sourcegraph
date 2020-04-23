@@ -1,5 +1,9 @@
 package converter
 
+import (
+	"sort"
+)
+
 func canonicalize(cx *CorrelationState) {
 	fns := []func(cx *CorrelationState){
 		// Determine if multiple documents are defined with the same URI. This happens in
@@ -30,11 +34,17 @@ func canonicalize(cx *CorrelationState) {
 // * document inserted for a path is the canonical document for that path. This function
 // * guarantees that duplicate document ids are removed from these maps.
 func canonicalizeDocuments(cx *CorrelationState) {
-	canonicalDocumentsIDsByPath := map[string]string{}
+	qr := map[string][]string{}
 	for documentID, doc := range cx.DocumentData {
-		canonicalDocumentID, ok := canonicalDocumentsIDsByPath[doc.URI]
-		if !ok {
-			canonicalDocumentsIDsByPath[doc.URI] = documentID
+		qr[doc.URI] = append(qr[doc.URI], documentID)
+	}
+	for _, v := range qr {
+		sort.Strings(v)
+	}
+
+	for documentID, doc := range cx.DocumentData {
+		canonicalDocumentID := qr[doc.URI][0]
+		if documentID == canonicalDocumentID {
 			continue
 		}
 
@@ -132,6 +142,7 @@ func canonicalizeRanges(cx *CorrelationState) {
 	for rangeID, rangeData := range cx.RangeData {
 		if _, nextItem, ok := next(cx, rangeID); ok {
 			rangeData = mergeNextRangeData(rangeData, nextItem)
+			delete(cx.NextData, rangeID)
 		}
 
 		rd := rangeData.setMonikerIDs(gatherMonikers(cx, rangeData.MonikerIDs))
@@ -143,7 +154,7 @@ func canonicalizeResultSetData(cx *CorrelationState, id string, item ResultSetDa
 	if nextID, nextItem, ok := next(cx, id); ok {
 		item = mergeNextResultSetData(item, canonicalizeResultSetData(cx, nextID, nextItem))
 		cx.ResultSetData[id] = item
-		delete(cx.NextData, nextID)
+		delete(cx.NextData, id)
 	}
 
 	return item
@@ -181,8 +192,8 @@ func mergeNextRangeData(item RangeData, nextItem ResultSetData) RangeData {
 
 func gatherMonikers(cx *CorrelationState, source idSet) idSet {
 	monikers := idSet{}
-	if canonicalID, ok := source.choose(); ok {
-		for id := range cx.LinkedMonikers.extractSet(canonicalID) {
+	for sourceID := range source {
+		for id := range cx.LinkedMonikers.extractSet(sourceID) {
 			if cx.MonikerData[id].Kind != "local" {
 				monikers.add(id)
 			}
