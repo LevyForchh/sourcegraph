@@ -69,7 +69,6 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 		} else {
 			err = jobHandle.MarkComplete()
 		}
-
 	}()
 
 	name, err := ioutil.TempDir("", "")
@@ -158,6 +157,7 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 	}
 
 	// TODO - use same txn (is ok?)
+	// TODO - there is a state mismatch here (we're still processing)
 	if err := w.db.UpdateDumpsVisibleFromTip(context.Background(), nil, upload.RepositoryID, tipCommit); err != nil {
 		return err
 	}
