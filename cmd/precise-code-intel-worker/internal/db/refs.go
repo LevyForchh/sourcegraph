@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/keegancsmith/sqlf"
 )
@@ -19,10 +20,21 @@ type Reference struct {
 	Identifiers []string // TODO - should be filter by now
 }
 
-func (db *dbImpl) UpdatePackages(ctx context.Context, tw *transactionWrapper, uploadID int, packages []Package) (err error) {
+func (db *dbImpl) UpdatePackages(ctx context.Context, tx *sql.Tx, uploadID int, packages []Package) (err error) {
 	if len(packages) == 0 {
 		return nil
 	}
+
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = closeTx(tx, err)
+		}()
+	}
+	tw := &transactionWrapper{tx}
 
 	if tw == nil {
 		tw, err = db.beginTx(ctx)
@@ -49,21 +61,21 @@ func (db *dbImpl) UpdatePackages(ctx context.Context, tw *transactionWrapper, up
 	return err
 }
 
-func (db *dbImpl) UpdateReferences(ctx context.Context, tw *transactionWrapper, uploadID int, references []Reference) (err error) {
+func (db *dbImpl) UpdateReferences(ctx context.Context, tx *sql.Tx, uploadID int, references []Reference) (err error) {
 	if len(references) == 0 {
 		return nil
 	}
 
-	if tw == nil {
-		tw, err = db.beginTx(ctx)
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
-
 		defer func() {
-			err = closeTx(tw.tx, err)
+			err = closeTx(tx, err)
 		}()
 	}
+	tw := &transactionWrapper{tx}
 
 	query := `
 		INSERT INTO lsif_references (dump_id, scheme, name, version, filter)

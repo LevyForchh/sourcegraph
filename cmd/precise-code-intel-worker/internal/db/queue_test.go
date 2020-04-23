@@ -44,6 +44,9 @@ func TestDequeueConversionSuccess(t *testing.T) {
 	if err := jobHandle.MarkComplete(); err != nil {
 		t.Fatalf("unexpected error marking upload complete: %s", err)
 	}
+	if err := jobHandle.CloseTx(nil); err != nil {
+		t.Fatalf("unexpected error closing transaction: %s", err)
+	}
 
 	if state, err := scanString(db.db.QueryRow("SELECT state FROM lsif_uploads WHERE id = 1")); err != nil {
 		t.Errorf("unexpected error getting state: %s", err)
@@ -85,6 +88,9 @@ func TestDequeueConversionError(t *testing.T) {
 
 	if err := jobHandle.MarkErrored("test summary", "test stacktrace"); err != nil {
 		t.Fatalf("unexpected error marking upload complete: %s", err)
+	}
+	if err := jobHandle.CloseTx(nil); err != nil {
+		t.Fatalf("unexpected error closing transaction: %s", err)
 	}
 
 	if state, err := scanString(db.db.QueryRow("SELECT state FROM lsif_uploads WHERE id = 1")); err != nil {
@@ -142,7 +148,7 @@ func TestDequeueSkipsLocked(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected something to be dequeueable")
 	}
-	defer func() { _ = jobHandle.MarkComplete() }()
+	defer func() { _ = jobHandle.CloseTx(nil) }()
 
 	if upload.ID != 3 {
 		t.Errorf("unexpected upload id. want=%d have=%d", 3, upload.ID)
@@ -186,9 +192,9 @@ func TestDequeueConcurrency(t *testing.T) {
 	}
 
 	if ok1 {
-		_ = closer1.MarkComplete()
+		_ = closer1.CloseTx(nil)
 	}
 	if ok2 {
-		_ = closer2.MarkComplete()
+		_ = closer2.CloseTx(nil)
 	}
 }

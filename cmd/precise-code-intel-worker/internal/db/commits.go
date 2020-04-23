@@ -2,11 +2,23 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/keegancsmith/sqlf"
 )
 
-func (db *dbImpl) UpdateCommits(ctx context.Context, repositoryID int, commits map[string][]string) error {
+func (db *dbImpl) UpdateCommits(ctx context.Context, tx *sql.Tx, repositoryID int, commits map[string][]string) (err error) {
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = closeTx(tx, err)
+		}()
+	}
+	tw := &transactionWrapper{tx}
+
 	var rows []*sqlf.Query
 	for commit, parents := range commits {
 		for _, parent := range parents {
@@ -20,9 +32,6 @@ func (db *dbImpl) UpdateCommits(ctx context.Context, repositoryID int, commits m
 
 	// TODO - test conflict
 	query := `INSERT INTO lsif_commits (repository_id, "commit", parent_commit) VALUES %s ON CONFLICT DO NOTHING`
-	if err := db.exec(ctx, sqlf.Sprintf(query, sqlf.Join(rows, ","))); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = tw.exec(ctx, sqlf.Sprintf(query, sqlf.Join(rows, ",")))
+	return err
 }

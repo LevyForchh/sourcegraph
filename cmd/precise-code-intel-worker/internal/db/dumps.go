@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/keegancsmith/sqlf"
 )
@@ -9,16 +10,17 @@ import (
 //
 // TODO - better thing than this TW (at least make an interface for it)
 
-func (db *dbImpl) DeleteOverlappingDumps(ctx context.Context, tw *transactionWrapper, repositoryID int, commit, root, indexer string) (err error) {
-	if tw == nil {
-		tw, err = db.beginTx(ctx)
+func (db *dbImpl) DeleteOverlappingDumps(ctx context.Context, tx *sql.Tx, repositoryID int, commit, root, indexer string) (err error) {
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 		defer func() {
-			err = closeTx(tw.tx, err)
+			err = closeTx(tx, err)
 		}()
 	}
+	tw := &transactionWrapper{tx}
 
 	query := `
 		DELETE from lsif_uploads

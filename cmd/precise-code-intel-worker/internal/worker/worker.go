@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -38,39 +39,34 @@ func New(opts WorkerOpts) *Worker {
 
 func (w *Worker) Start() error {
 	for {
-		fmt.Printf("BUMPIN\n")
-
-		upload, jobHandle, ok, err := w.db.Dequeue(context.Background())
-		if err != nil {
+		if ok, err := w.dequeueAndProcess(); err != nil {
 			return err
-		}
-		if !ok {
+		} else if !ok {
 			time.Sleep(w.pollInterval)
-			continue
 		}
-
-		fmt.Printf("Processing\n")
-		if err := w.process(upload, jobHandle); err != nil {
-			fmt.Printf("FAILED TO PROCESS: %#v\n", err)
-			return err
-		}
-
-		fmt.Printf("PROCESSED!\n")
 	}
 }
 
-func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
-	defer func() {
-		if err != nil {
-			// TODO- extract text
-			if markErr := jobHandle.MarkErrored("", ""); markErr != nil {
-				err = multierror.Append(err, markErr)
-			}
-		} else {
-			err = jobHandle.MarkComplete()
-		}
-	}()
+func (w *Worker) dequeueAndProcess() (bool, error) {
+	upload, jobHandle, ok, err := w.db.Dequeue(context.Background())
+	if err != nil || !ok {
+		return false, err
+	}
 
+	err = w.process(context.Background(), upload, jobHandle)
+	if err != nil {
+		if markErr := jobHandle.MarkErrored(err.Error(), "TODO"); markErr != nil {
+			err = multierror.Append(err, markErr)
+		}
+	}
+	if err := jobHandle.CloseTx(err); err != nil {
+		fmt.Printf("WHOOPSIE: %s\n", err)
+	}
+
+	return true, nil
+}
+
+func (w *Worker) process(ctx context.Context, upload db.Upload, jobHandle db.JobHandle) (err error) {
 	name, err := ioutil.TempDir("", "")
 	if err != nil {
 		return err
@@ -81,7 +77,7 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 		}
 	}()
 
-	filename, err := w.bundleManagerClient.GetUpload(context.Background(), upload.ID, name)
+	filename, err := w.bundleManagerClient.GetUpload(ctx, upload.ID, name)
 	if err != nil {
 		return err
 	}
@@ -118,32 +114,47 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 	}
 	defer f.Close()
 
-	if err := w.bundleManagerClient.SendDB(context.Background(), upload.ID, f); err != nil {
+	if err := w.bundleManagerClient.SendDB(ctx, upload.ID, f); err != nil {
 		return err
 	}
 
-	// TODO - use same txn
-	if err := w.db.DeleteOverlappingDumps(context.Background(), nil, upload.RepositoryID, upload.Commit, upload.Root, upload.Indexer); err != nil {
+	// TODO - do everything below here in a nested transaction so we can
+	// mark it as failed without deleting dumps or updating visibility
+	// on a late processing failure
+
+	if err := w.db.DeleteOverlappingDumps(ctx, jobHandle.Tx(), upload.RepositoryID, upload.Commit, upload.Root, upload.Indexer); err != nil {
 		return err
 	}
 
-	tipCommit, err := gitserver.Head(w.db, upload.RepositoryID)
+	if err := jobHandle.MarkComplete(); err != nil {
+		return err
+	}
+
+	if err := w.updateCommits(ctx, jobHandle.Tx(), upload.RepositoryID, upload.Commit); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Worker) updateCommits(ctx context.Context, tx *sql.Tx, repositoryID int, commit string) error {
+	tipCommit, err := gitserver.Head(w.db, repositoryID)
 	if err != nil {
 		return err
 	}
 
-	newCommits, err := gitserver.CommitsNear(w.db, upload.RepositoryID, tipCommit)
+	newCommits, err := gitserver.CommitsNear(w.db, repositoryID, tipCommit)
 	if err != nil {
 		return err
 	}
 
-	if tipCommit != upload.Commit {
+	if tipCommit != commit {
 		// If the tip is ahead of this commit, we also want to discover all of
 		// the commits between this commit and the tip so that we can accurately
 		// determine what is visible from the tip. If we do not do this before the
 		// updateDumpsVisibleFromTip call below, no dumps will be reachable from
 		// the tip and all dumps will be invisible.
-		additionalCommits, err := gitserver.CommitsNear(w.db, upload.RepositoryID, upload.Commit)
+		additionalCommits, err := gitserver.CommitsNear(w.db, repositoryID, commit)
 		if err != nil {
 			return err
 		}
@@ -153,16 +164,13 @@ func (w *Worker) process(upload db.Upload, jobHandle db.JobHandle) (err error) {
 		}
 	}
 
-	// TODO - use same txn
 	// TODO - need to do same discover on query
 	// TODO - determine if we know about these commits first
-	if err := w.db.UpdateCommits(context.Background(), upload.RepositoryID, newCommits); err != nil {
+	if err := w.db.UpdateCommits(ctx, tx, repositoryID, newCommits); err != nil {
 		return err
 	}
 
-	// TODO - use same txn (is ok?)
-	// TODO - there is a state mismatch here (we're still processing)
-	if err := w.db.UpdateDumpsVisibleFromTip(context.Background(), nil, upload.RepositoryID, tipCommit); err != nil {
+	if err := w.db.UpdateDumpsVisibleFromTip(ctx, tx, repositoryID, tipCommit); err != nil {
 		return err
 	}
 

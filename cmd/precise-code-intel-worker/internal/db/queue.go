@@ -3,12 +3,10 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"fmt"
 
 	"github.com/keegancsmith/sqlf"
 )
-
-var ErrConcurrentDequeue = errors.New("record %s locked after selection")
 
 func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) {
 	selectionQuery := `
@@ -57,42 +55,56 @@ func (db *dbImpl) dequeue(ctx context.Context, id int) (_ Upload, _ JobHandle, _
 		return Upload{}, nil, false, err
 	}
 
-	return upload, &jobHandleImpl{ctx, tw, &txCloser{tw.tx}, id}, true, nil
+	jobHandle := &jobHandleImpl{
+		ctx:      ctx,
+		id:       id,
+		tw:       tw,
+		txCloser: &txCloser{tw.tx},
+	}
+
+	return upload, jobHandle, true, nil
 }
 
 type jobHandleImpl struct {
 	ctx      context.Context
+	id       int
 	tw       *transactionWrapper
 	txCloser TxCloser
-	id       int
+	marked   bool
+}
+
+func (h *jobHandleImpl) CloseTx(err error) error {
+	if err == nil && !h.marked {
+		err = fmt.Errorf("job not finalized")
+	}
+
+	return h.txCloser.CloseTx(err)
+}
+
+func (h *jobHandleImpl) Tx() *sql.Tx {
+	return h.tw.tx
 }
 
 func (h *jobHandleImpl) MarkComplete() (err error) {
-	defer func() {
-		err = h.txCloser.CloseTx(err)
-	}()
-
 	query := `
 		UPDATE lsif_uploads
 		SET state = 'completed', finished_at = now()
 		WHERE id = %s
 	`
 
+	h.marked = true
 	_, err = h.tw.exec(h.ctx, sqlf.Sprintf(query, h.id))
 	return err
 }
 
 func (h *jobHandleImpl) MarkErrored(failureSummary, failureStacktrace string) (err error) {
-	defer func() {
-		err = h.txCloser.CloseTx(err)
-	}()
-
 	query := `
 		UPDATE lsif_uploads
 		SET state = 'errored', finished_at = now(), failure_summary = %s, failure_stacktrace = %s
 		WHERE id = %s
 	`
 
+	h.marked = true
 	_, err = h.tw.exec(h.ctx, sqlf.Sprintf(query, failureSummary, failureStacktrace, h.id))
 	return err
 }

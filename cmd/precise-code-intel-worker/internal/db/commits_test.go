@@ -16,7 +16,7 @@ func TestUpdateCommits(t *testing.T) {
 	dbtesting.SetupGlobalTestDB(t)
 	db := &dbImpl{db: dbconn.Global}
 
-	err := db.UpdateCommits(context.Background(), 50, map[string][]string{
+	err := db.UpdateCommits(context.Background(), nil, 50, map[string][]string{
 		makeCommit(1): {},
 		makeCommit(2): {makeCommit(1)},
 		makeCommit(3): {makeCommit(1)},
