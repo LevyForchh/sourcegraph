@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -9,20 +8,14 @@ import (
 )
 
 var (
-	envPrefix           = "PRECISE_CODE_INTEL"
-	rawBundleManagerURL = envGet("BUNDLE_MANAGER_URL", "", "HTTP address for internal LSIF bundle manager server.")
-	rawPollInterval     = envGet("POLL_INTERVAL", "1s", "Interval between queries to the work queue.")
+	rawBundleManagerURL = env.Get("PRECISE_CODE_INTEL_BUNDLE_MANAGER_URL", "", "HTTP address for internal LSIF bundle manager server.")
+	rawPollInterval     = env.Get("PRECISE_CODE_INTEL_POLL_INTERVAL", "1s", "Interval between queries to the work queue.")
 )
-
-// envGet is like env.Get but prefixes all envvars
-func envGet(name, defaultValue, description string) string {
-	return env.Get(fmt.Sprintf("%s_%s", envPrefix, name), defaultValue, description)
-}
 
 // mustGet returns the non-empty version of the given raw value fatally logs on failure.
 func mustGet(rawValue, name string) string {
 	if rawValue == "" {
-		log.Fatalf("invalid value %q for %s_%s: no value supplied", rawValue, envPrefix, name)
+		log.Fatalf("invalid value %q for %s: no value supplied", rawValue, name)
 	}
 
 	return rawValue
@@ -32,7 +25,7 @@ func mustGet(rawValue, name string) string {
 func mustParseInterval(rawValue, name string) time.Duration {
 	d, err := time.ParseDuration(rawValue)
 	if err != nil {
-		log.Fatalf("invalid duration %q for %s_%s: %s", rawValue, envPrefix, name, err)
+		log.Fatalf("invalid duration %q for %s: %s", rawValue, name, err)
 	}
 
 	return d

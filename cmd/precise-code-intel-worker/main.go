@@ -24,8 +24,8 @@ func main() {
 	sqliteutil.MustRegisterSqlite3WithPcre()
 
 	var (
-		pollInterval     = mustParseInterval(rawPollInterval, "POLL_INTERVAL")
-		bundleManagerURL = mustGet(rawBundleManagerURL, "BUNDLE_MANAGER_URL")
+		pollInterval     = mustParseInterval(rawPollInterval, "PRECISE_CODE_INTEL_POLL_INTERVAL")
+		bundleManagerURL = mustGet(rawBundleManagerURL, "PRECISE_CODE_INTEL_BUNDLE_MANAGER_URL")
 	)
 
 	db := mustInitializeDatabase()
