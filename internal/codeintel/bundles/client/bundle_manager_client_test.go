@@ -107,7 +107,7 @@ func TestGetUploadBadResponse(t *testing.T) {
 	}
 }
 
-func TestSendB(t *testing.T) {
+func TestSendDB(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			t.Errorf("unexpected method. want=%s have=%s", "POST", r.Method)
