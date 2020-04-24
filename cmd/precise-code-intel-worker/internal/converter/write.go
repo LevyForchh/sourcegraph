@@ -9,6 +9,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jmoiron/sqlx"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/database"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/types"
 	"github.com/sourcegraph/sourcegraph/internal/sqliteutil"
 )
 
@@ -204,10 +206,10 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 			}
 		}
 
-		var wrappedRanges wrappedMapValue
-		var wrappedHoverResults wrappedMapValue
-		var wrappedMonikers wrappedMapValue
-		var wrappedPackageInformation wrappedMapValue
+		wrappedRanges := map[string][]json.RawMessage{"value": nil}
+		wrappedHoverResults := map[string][]json.RawMessage{"value": nil}
+		wrappedMonikers := map[string][]json.RawMessage{"value": nil}
+		wrappedPackageInformation := map[string][]json.RawMessage{"value": nil}
 
 		for k, v := range document.Ranges {
 			var r []json.RawMessage
@@ -228,13 +230,13 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 				"definitionResultId": v.DefinitionResultID,
 				"referenceResultId":  v.ReferenceResultID,
 				"hoverResultId":      v.HoverResultID,
-				"monikerIds":         wrappedSetValue{Value: r},
+				"monikerIds":         map[string]interface{}{"value": r},
 			}})
 			if err != nil {
 				return err
 			}
 
-			wrappedRanges.Value = append(wrappedRanges.Value, ser)
+			wrappedRanges["value"] = append(wrappedRanges["value"], ser)
 		}
 
 		for k, v := range document.HoverResults {
@@ -243,7 +245,7 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 				return err
 			}
 
-			wrappedHoverResults.Value = append(wrappedHoverResults.Value, ser)
+			wrappedHoverResults["value"] = append(wrappedHoverResults["value"], ser)
 		}
 
 		for k, v := range document.Monikers {
@@ -252,7 +254,7 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 				return err
 			}
 
-			wrappedMonikers.Value = append(wrappedMonikers.Value, ser)
+			wrappedMonikers["value"] = append(wrappedMonikers["value"], ser)
 		}
 
 		for k, v := range document.PackageInformation {
@@ -261,7 +263,7 @@ func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter 
 				return err
 			}
 
-			wrappedPackageInformation.Value = append(wrappedPackageInformation.Value, ser)
+			wrappedPackageInformation["value"] = append(wrappedPackageInformation["value"], ser)
 		}
 
 		// Create document record from the correlated information. This will also insert
@@ -312,8 +314,8 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 			continue
 		}
 
-		var wrappedDocumentPaths wrappedMapValue
-		var wrappedDocumentIdRangeIds wrappedMapValue
+		wrappedDocumentPaths := map[string][]json.RawMessage{"value": nil}
+		wrappedDocumentIdRangeIds := map[string][]json.RawMessage{"value": nil}
 
 		for k, v := range resultChunk.Paths {
 			ser, err := json.Marshal([]interface{}{k, v})
@@ -321,7 +323,7 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 				return err
 			}
 
-			wrappedDocumentPaths.Value = append(wrappedDocumentPaths.Value, ser)
+			wrappedDocumentPaths["value"] = append(wrappedDocumentPaths["value"], ser)
 		}
 
 		for k, v := range resultChunk.DocumentIDRangeIDs {
@@ -330,7 +332,7 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 				return err
 			}
 
-			wrappedDocumentIdRangeIds.Value = append(wrappedDocumentIdRangeIds.Value, ser)
+			wrappedDocumentIdRangeIds["value"] = append(wrappedDocumentIdRangeIds["value"], ser)
 		}
 
 		gx := map[string]interface{}{
@@ -353,7 +355,7 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 
 func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[string]defaultIDSetMap) {
 	for id, documentRanges := range data {
-		resultChunk := resultChunks[hashKey(id, len(resultChunks))]
+		resultChunk := resultChunks[database.HashKey(types.ID(id), len(resultChunks))]
 
 		for documentID, rangeIDs := range documentRanges {
 			doc := cx.DocumentData[documentID]

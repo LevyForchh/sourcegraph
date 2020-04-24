@@ -317,7 +317,7 @@ var testCasesCoprimes = map[types.ID]int{
 
 func TestHashKeyUUIDs(t *testing.T) {
 	for id, expectedHash := range testCasesUUIDs {
-		if value := hashKey(id, 20); value != expectedHash {
+		if value := HashKey(id, 20); value != expectedHash {
 			t.Errorf("unexpected hash result for %s. want=%d have=%d", id, expectedHash, value)
 		}
 	}
@@ -325,7 +325,7 @@ func TestHashKeyUUIDs(t *testing.T) {
 
 func TestHashKeySmallNumberss(t *testing.T) {
 	for id, expectedHash := range testCaseSmallNumbers {
-		if value := hashKey(id, 20); value != expectedHash {
+		if value := HashKey(id, 20); value != expectedHash {
 			t.Errorf("unexpected hash result for %s. want=%d have=%d", id, expectedHash, value)
 		}
 	}
@@ -333,7 +333,7 @@ func TestHashKeySmallNumberss(t *testing.T) {
 
 func TestHashKeyCoprimes(t *testing.T) {
 	for id, expectedHash := range testCasesCoprimes {
-		if value := hashKey(id, 20); value != expectedHash {
+		if value := HashKey(id, 20); value != expectedHash {
 			t.Errorf("unexpected hash result for %s. want=%d have=%d", id, expectedHash, value)
 		}
 	}
