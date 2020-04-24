@@ -169,6 +169,9 @@ func (db *dbImpl) UpdateDumpsVisibleFromTip(ctx context.Context, tx *sql.Tx, rep
 	return err
 }
 
+// DeleteOverlapapingDumps deletes all completed uploads for the given repository with the same
+// commit, root, and indexer. This is necessary to perform during conversions before changing
+// the state of a processing upload to completed as there is a unique index on these four columns.
 func (db *dbImpl) DeleteOverlappingDumps(ctx context.Context, tx *sql.Tx, repositoryID int, commit, root, indexer string) (err error) {
 	if tx == nil {
 		tx, err = db.db.BeginTx(ctx, nil)

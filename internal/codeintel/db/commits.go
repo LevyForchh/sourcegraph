@@ -7,6 +7,7 @@ import (
 	"github.com/keegancsmith/sqlf"
 )
 
+// UpdateCommits upserts commits/parent-commit relations for the given repository ID.
 func (db *dbImpl) UpdateCommits(ctx context.Context, tx *sql.Tx, repositoryID int, commits map[string][]string) (err error) {
 	if tx == nil {
 		tx, err = db.db.BeginTx(ctx, nil)
@@ -30,7 +31,7 @@ func (db *dbImpl) UpdateCommits(ctx context.Context, tx *sql.Tx, repositoryID in
 		}
 	}
 
-	// TODO - test conflict
+	// TODO(efritz) - add a test for conflicting commits
 	query := `INSERT INTO lsif_commits (repository_id, "commit", parent_commit) VALUES %s ON CONFLICT DO NOTHING`
 	_, err = tw.exec(ctx, sqlf.Sprintf(query, sqlf.Join(rows, ",")))
 	return err

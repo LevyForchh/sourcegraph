@@ -16,14 +16,7 @@ type Reference struct {
 	Filter []byte
 }
 
-// TODO - rework these structs
-type FullPackage struct {
-	Scheme  string
-	Name    string
-	Version string
-}
-
-// TODO - rework these structs
+// TODO(efritz) - rename
 type FullReference struct {
 	Scheme      string
 	Name        string
@@ -126,47 +119,7 @@ func (db *dbImpl) PackageReferencePager(ctx context.Context, scheme, name, versi
 	return totalCount, newReferencePager(tw.tx, pageFromOffset), nil
 }
 
-func (db *dbImpl) UpdatePackages(ctx context.Context, tx *sql.Tx, uploadID int, packages []FullPackage) (err error) {
-	if len(packages) == 0 {
-		return nil
-	}
-
-	if tx == nil {
-		tx, err = db.db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err = closeTx(tx, err)
-		}()
-	}
-	tw := &transactionWrapper{tx}
-
-	if tw == nil {
-		tw, err = db.beginTx(ctx)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err = closeTx(tw.tx, err)
-		}()
-	}
-
-	query := `
-		INSERT INTO lsif_packages (dump_id, scheme, name, version)
-		VALUES %s
-		ON CONFLICT DO NOTHING
-	`
-
-	var values []*sqlf.Query
-	for _, p := range packages {
-		values = append(values, sqlf.Sprintf("(%s, %s, %s, %s)", uploadID, p.Scheme, p.Name, p.Version))
-	}
-
-	_, err = tw.exec(ctx, sqlf.Sprintf(query, sqlf.Join(values, ",")))
-	return err
-}
-
+// UpdateReferences inserts reference data tied to the given upload.
 func (db *dbImpl) UpdateReferences(ctx context.Context, tx *sql.Tx, uploadID int, references []FullReference) (err error) {
 	if len(references) == 0 {
 		return nil

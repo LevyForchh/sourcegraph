@@ -463,15 +463,15 @@ func TestUpdateReferences(t *testing.T) {
 
 	if err := db.UpdateReferences(context.Background(), nil, 42, []FullReference{
 		{Scheme: "s0", Name: "n0", Version: "v0", Identifiers: nil}, // TODO - filters
-		{Scheme: "s1", Name: "n1", Version: "v1", Identifiers: nil}, // TODO - filters
-		{Scheme: "s2", Name: "n2", Version: "v2", Identifiers: nil}, // TODO - filters
-		{Scheme: "s3", Name: "n3", Version: "v3", Identifiers: nil}, // TODO - filters
-		{Scheme: "s4", Name: "n4", Version: "v4", Identifiers: nil}, // TODO - filters
-		{Scheme: "s5", Name: "n5", Version: "v5", Identifiers: nil}, // TODO - filters
-		{Scheme: "s6", Name: "n6", Version: "v6", Identifiers: nil}, // TODO - filters
-		{Scheme: "s7", Name: "n7", Version: "v7", Identifiers: nil}, // TODO - filters
-		{Scheme: "s8", Name: "n8", Version: "v8", Identifiers: nil}, // TODO - filters
-		{Scheme: "s9", Name: "n9", Version: "v9", Identifiers: nil}, // TODO - filters
+		{Scheme: "s1", Name: "n1", Version: "v1", Identifiers: nil},
+		{Scheme: "s2", Name: "n2", Version: "v2", Identifiers: nil},
+		{Scheme: "s3", Name: "n3", Version: "v3", Identifiers: nil},
+		{Scheme: "s4", Name: "n4", Version: "v4", Identifiers: nil},
+		{Scheme: "s5", Name: "n5", Version: "v5", Identifiers: nil},
+		{Scheme: "s6", Name: "n6", Version: "v6", Identifiers: nil},
+		{Scheme: "s7", Name: "n7", Version: "v7", Identifiers: nil},
+		{Scheme: "s8", Name: "n8", Version: "v8", Identifiers: nil},
+		{Scheme: "s9", Name: "n9", Version: "v9", Identifiers: nil},
 	}); err != nil {
 		t.Fatalf("unexpected error updating references: %s", err)
 	}

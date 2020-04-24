@@ -175,6 +175,10 @@ func (db *dbImpl) Enqueue(ctx context.Context, commit, root, tracingContext stri
 	return id, &txCloser{tw.tx}, nil
 }
 
+// Dequeue selects the oldest queued upload and locks it with a transaction. If there is such an upload, the
+// upload is returned along with a JobHandle instance which wraps the transaction. This handle must be closed.
+// If there is no such unlocked upload, a zero-value upload and nil-job handle will be returned alogn with a
+// false-valued flag.
 func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) {
 	selectionQuery := `
 		UPDATE lsif_uploads u SET state = 'processing', started_at = now() WHERE id = (
@@ -187,6 +191,8 @@ func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) 
 	`
 
 	for {
+		// First, we try to select an eligible upload record outside of a transaction. This will skip
+		// any rows that are currently locked inside of a transaction of another worker process.
 		id, err := scanInt(db.queryRow(ctx, sqlf.Sprintf(selectionQuery)))
 		if err != nil {
 			return Upload{}, nil, false, ignoreErrNoRows(err)
@@ -194,6 +200,9 @@ func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) 
 
 		upload, jobHandle, ok, err := db.dequeue(ctx, id)
 		if err != nil {
+			// This will occur if we selected an ID that raced with another worker. If both workers
+			// select the same ID and the other process begins its transaction first, this condition
+			// will occur. We'll re-try the process by selecting a fresh ID.
 			if err == sql.ErrNoRows {
 				continue
 			}
@@ -205,6 +214,10 @@ func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) 
 	}
 }
 
+// dequeue begins a transaction to lock an upload record for updating. This marks the upload as
+// uneligible for a dequeue to other worker processes. All updates to the database while this record
+// is being processes should happen through the JobHandle's transaction, which must be explicitly
+// closed (via CloseTx) at the end of processing by the caller.
 func (db *dbImpl) dequeue(ctx context.Context, id int) (_ Upload, _ JobHandle, _ bool, err error) {
 	tw, err := db.beginTx(ctx)
 	if err != nil {
