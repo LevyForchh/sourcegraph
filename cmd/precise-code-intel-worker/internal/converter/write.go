@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jmoiron/sqlx"
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/sqliteutil"
+	"github.com/sourcegraph/sourcegraph/internal/sqliteutil"
 )
 
 const MaxNumResultChunks = 1000

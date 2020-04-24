@@ -60,6 +60,17 @@ type DB interface {
 	// and reference the package with the given scheme, name, and version. All resulting dumps are visible at the tip of their repository's
 	// default branch.
 	PackageReferencePager(ctx context.Context, scheme, name, version string, repositoryID, limit int) (int, ReferencePager, error)
+
+	// UpdateDumpsVisibleFromTip recalculates the visible_at_tip flag of all dumps of the given repository.
+	UpdateDumpsVisibleFromTip(ctx context.Context, tx *sql.Tx, repositoryID int, tipCommit string) (err error)
+
+	// TODO
+	RepoName(ctx context.Context, repositoryID int) (string, error)
+	Dequeue(ctx context.Context) (Upload, JobHandle, bool, error)
+	UpdatePackages(ctx context.Context, tx *sql.Tx, uploadID int, packages []FullPackage) error
+	UpdateReferences(ctx context.Context, tx *sql.Tx, uploadID int, references []FullReference) error
+	UpdateCommits(ctx context.Context, tx *sql.Tx, repositoryID int, commits map[string][]string) error
+	DeleteOverlappingDumps(ctx context.Context, tx *sql.Tx, repositoryID int, commit, root, indexer string) error
 }
 
 type dbImpl struct {
@@ -78,14 +89,19 @@ func New(postgresDSN string) (DB, error) {
 	return &dbImpl{db: db}, nil
 }
 
-// query performs Query on the underlying connection.
+// query performs QueryContext on the underlying connection.
 func (db *dbImpl) query(ctx context.Context, query *sqlf.Query) (*sql.Rows, error) {
 	return db.db.QueryContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
 }
 
-// queryRow performs QueryRow on the underlying connection.
+// queryRow performs QueryRowContext on the underlying connection.
 func (db *dbImpl) queryRow(ctx context.Context, query *sqlf.Query) *sql.Row {
 	return db.db.QueryRowContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
+}
+
+// exec performs ExecContext on the underlying connection.
+func (db *dbImpl) exec(ctx context.Context, query *sqlf.Query) (sql.Result, error) {
+	return db.db.ExecContext(ctx, query.Query(sqlf.PostgresBindVar), query.Args()...)
 }
 
 // beginTx performs BeginTx on the underlying connection and wraps the transaction.

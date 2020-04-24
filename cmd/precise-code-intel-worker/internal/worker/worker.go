@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/bundles"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/converter"
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/db"
-	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/gitserver"
+	bundles "github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/client"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/db"
+	"github.com/sourcegraph/sourcegraph/internal/codeintel/gitserver"
 )
 
 type WorkerOpts struct {

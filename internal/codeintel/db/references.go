@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/keegancsmith/sqlf"
 )
@@ -13,6 +14,21 @@ import (
 type Reference struct {
 	DumpID int
 	Filter []byte
+}
+
+// TODO - rework these structs
+type FullPackage struct {
+	Scheme  string
+	Name    string
+	Version string
+}
+
+// TODO - rework these structs
+type FullReference struct {
+	Scheme      string
+	Name        string
+	Version     string
+	Identifiers []string // TODO - should be filter by now
 }
 
 // SameRepoPager returns a ReferencePager for dumps that belong to the given repository and commit and reference the package with the
@@ -108,4 +124,75 @@ func (db *dbImpl) PackageReferencePager(ctx context.Context, scheme, name, versi
 	}
 
 	return totalCount, newReferencePager(tw.tx, pageFromOffset), nil
+}
+
+func (db *dbImpl) UpdatePackages(ctx context.Context, tx *sql.Tx, uploadID int, packages []FullPackage) (err error) {
+	if len(packages) == 0 {
+		return nil
+	}
+
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = closeTx(tx, err)
+		}()
+	}
+	tw := &transactionWrapper{tx}
+
+	if tw == nil {
+		tw, err = db.beginTx(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = closeTx(tw.tx, err)
+		}()
+	}
+
+	query := `
+		INSERT INTO lsif_packages (dump_id, scheme, name, version)
+		VALUES %s
+		ON CONFLICT DO NOTHING
+	`
+
+	var values []*sqlf.Query
+	for _, p := range packages {
+		values = append(values, sqlf.Sprintf("(%s, %s, %s, %s)", uploadID, p.Scheme, p.Name, p.Version))
+	}
+
+	_, err = tw.exec(ctx, sqlf.Sprintf(query, sqlf.Join(values, ",")))
+	return err
+}
+
+func (db *dbImpl) UpdateReferences(ctx context.Context, tx *sql.Tx, uploadID int, references []FullReference) (err error) {
+	if len(references) == 0 {
+		return nil
+	}
+
+	if tx == nil {
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			err = closeTx(tx, err)
+		}()
+	}
+	tw := &transactionWrapper{tx}
+
+	query := `
+		INSERT INTO lsif_references (dump_id, scheme, name, version, filter)
+		VALUES %s
+	`
+
+	var values []*sqlf.Query
+	for _, r := range references {
+		values = append(values, sqlf.Sprintf("(%s, %s, %s, %s, %s)", uploadID, r.Scheme, r.Name, r.Version, ""))
+	}
+
+	_, err = tw.exec(ctx, sqlf.Sprintf(query, sqlf.Join(values, ",")))
+	return err
 }

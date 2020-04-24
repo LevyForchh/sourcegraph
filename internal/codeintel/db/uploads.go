@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/keegancsmith/sqlf"
@@ -174,6 +175,63 @@ func (db *dbImpl) Enqueue(ctx context.Context, commit, root, tracingContext stri
 	return id, &txCloser{tw.tx}, nil
 }
 
+func (db *dbImpl) Dequeue(ctx context.Context) (Upload, JobHandle, bool, error) {
+	selectionQuery := `
+		UPDATE lsif_uploads u SET state = 'processing', started_at = now() WHERE id = (
+			SELECT id FROM lsif_uploads
+			WHERE state = 'queued'
+			ORDER BY uploaded_at
+			FOR UPDATE SKIP LOCKED LIMIT 1
+		)
+		RETURNING u.id
+	`
+
+	for {
+		id, err := scanInt(db.queryRow(ctx, sqlf.Sprintf(selectionQuery)))
+		if err != nil {
+			return Upload{}, nil, false, ignoreErrNoRows(err)
+		}
+
+		upload, jobHandle, ok, err := db.dequeue(ctx, id)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				continue
+			}
+
+			return Upload{}, nil, false, err
+		}
+
+		return upload, jobHandle, ok, nil
+	}
+}
+
+func (db *dbImpl) dequeue(ctx context.Context, id int) (_ Upload, _ JobHandle, _ bool, err error) {
+	tw, err := db.beginTx(ctx)
+	if err != nil {
+		return Upload{}, nil, false, err
+	}
+	defer func() {
+		if err != nil {
+			err = closeTx(tw.tx, err)
+		}
+	}()
+
+	fetchQuery := `SELECT u.*, NULL FROM lsif_uploads u WHERE id = %s FOR UPDATE SKIP LOCKED LIMIT 1`
+	upload, err := scanUpload(tw.queryRow(ctx, sqlf.Sprintf(fetchQuery, id)))
+	if err != nil {
+		return Upload{}, nil, false, err
+	}
+
+	jobHandle := &jobHandleImpl{
+		ctx:      ctx,
+		id:       id,
+		tw:       tw,
+		txCloser: &txCloser{tw.tx},
+	}
+
+	return upload, jobHandle, true, nil
+}
+
 // GetStates returns the states for the uploads with the given identifiers.
 func (db *dbImpl) GetStates(ctx context.Context, ids []int) (map[int]string, error) {
 	query := `SELECT id, state FROM lsif_uploads WHERE id IN (%s)`
@@ -212,7 +270,7 @@ func (db *dbImpl) DeleteUploadByID(ctx context.Context, id int, getTipCommit fun
 		return false, err
 	}
 
-	if err := db.updateDumpsVisibleFromTip(ctx, tw, repositoryID, tipCommit); err != nil {
+	if err := db.UpdateDumpsVisibleFromTip(ctx, tw.tx, repositoryID, tipCommit); err != nil {
 		return false, err
 	}
 

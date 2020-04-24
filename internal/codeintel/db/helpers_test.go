@@ -9,6 +9,7 @@ import (
 	"github.com/keegancsmith/sqlf"
 )
 
+// TODO - can use these as real models now?
 type PackageModel struct {
 	Scheme  string
 	Name    string
@@ -16,6 +17,7 @@ type PackageModel struct {
 	DumpID  int
 }
 
+// TODO - can use these as real models now?
 type ReferenceModel struct {
 	Scheme  string
 	Name    string
@@ -23,6 +25,8 @@ type ReferenceModel struct {
 	DumpID  int
 	Filter  []byte
 }
+
+// TODO - see what we can remove from here
 
 // insertUploads populates the lsif_uploads table with the given upload models.
 func insertUploads(t *testing.T, db *sql.DB, uploads ...Upload) {
