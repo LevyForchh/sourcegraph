@@ -4,7 +4,7 @@ import (
 	"sort"
 )
 
-func canonicalize(cx *CorrelationState) {
+func Canonicalize(cx *CorrelationState) {
 	fns := []func(cx *CorrelationState){
 		// Determine if multiple documents are defined with the same URI. This happens in
 		// some indexers (such as lsif-tsc) that index dependent projects into the same

@@ -70,7 +70,7 @@ func malformedDump(id, references string, kinds ...string) error {
 	}
 }
 
-func correlate(filename, root string) (*CorrelationState, error) {
+func Correlate(filename, root string) (*CorrelationState, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err

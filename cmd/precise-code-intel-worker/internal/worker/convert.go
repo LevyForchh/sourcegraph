@@ -1,9 +1,11 @@
-package converter
+package worker
 
 import (
 	"fmt"
 
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/correlation"
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/writer"
 )
 
 type Package struct {
@@ -19,26 +21,26 @@ type Reference struct {
 	Identifiers []string
 }
 
-func Convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
-	cx, err := correlate(filename, root)
+func convert(fn existence.GetChildrenFunc, root, filename, newFilename string) (_ []Package, _ []Reference, err error) {
+	cx, err := correlation.Correlate(filename, root)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	canonicalize(cx)
+	correlation.Canonicalize(cx)
 
-	if err := Prune(fn, root, cx); err != nil {
+	if err := correlation.Prune(fn, root, cx); err != nil {
 		return nil, nil, err
 	}
 
-	if err := Write(cx, newFilename); err != nil {
+	if err := writer.Write(cx, newFilename); err != nil {
 		return nil, nil, err
 	}
 
 	return packages(cx), references(cx), nil
 }
 
-func packages(cx *CorrelationState) []Package {
+func packages(cx *correlation.CorrelationState) []Package {
 	// TODO - de-duplicate
 	var packages []Package
 	for id := range cx.ExportedMonikers {
@@ -54,7 +56,7 @@ func packages(cx *CorrelationState) []Package {
 	return packages
 }
 
-func references(cx *CorrelationState) []Reference {
+func references(cx *correlation.CorrelationState) []Reference {
 	references := map[string]Reference{}
 	for id := range cx.ImportedMonikers {
 		source := cx.MonikerData[id]
