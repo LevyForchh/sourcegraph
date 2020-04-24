@@ -1,7 +1,20 @@
 coverage:
   range: 50...75
   status:
-    project: off
+    project:
+      codeintel:
+        paths:
+          - cmd/precise-code-intel-*
+          - internal/codeintel
+          - enterprise/internal/codeintel
+      web:
+        paths:
+          - browser
+          - shared
+          - web
+      backend:
+        paths:
+          - "*.go"
     patch:
       default:
         target: 5%
