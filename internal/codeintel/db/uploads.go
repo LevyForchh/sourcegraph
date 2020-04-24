@@ -229,7 +229,11 @@ func (db *dbImpl) dequeue(ctx context.Context, id int) (_ Upload, _ JobHandle, _
 		}
 	}()
 
+	// SKIP LOCKED is necessary not to block on this select. We allow the database driver to return
+	// sql.ErrNoRows on this condition so we can determine if we need to select a new upload to process
+	// on race conditions with other worker processes.
 	fetchQuery := `SELECT u.*, NULL FROM lsif_uploads u WHERE id = %s FOR UPDATE SKIP LOCKED LIMIT 1`
+
 	upload, err := scanUpload(tw.queryRow(ctx, sqlf.Sprintf(fetchQuery, id)))
 	if err != nil {
 		return Upload{}, nil, false, err
