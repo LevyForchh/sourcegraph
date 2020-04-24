@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"testing"
@@ -9,35 +9,35 @@ import (
 func TestCanonicalizeDocuments(t *testing.T) {
 	state := &CorrelationState{
 		DocumentData: map[string]DocumentData{
-			"d01": {URI: "main.go", Contains: idSet{"r01": {}}},
-			"d02": {URI: "foo.go", Contains: idSet{"r02": {}}},
-			"d03": {URI: "bar.go", Contains: idSet{"r03": {}}},
-			"d04": {URI: "main.go", Contains: idSet{"r04": {}}},
+			"d01": {URI: "main.go", Contains: IDSet{"r01": {}}},
+			"d02": {URI: "foo.go", Contains: IDSet{"r02": {}}},
+			"d03": {URI: "bar.go", Contains: IDSet{"r03": {}}},
+			"d04": {URI: "main.go", Contains: IDSet{"r04": {}}},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
-			"x01": {"d01": idSet{"r05": {}}},
-			"x02": {"d02": idSet{"r06": {}}, "d04": idSet{"r07": {}}},
+		DefinitionData: map[string]DefaultIDSetMap{
+			"x01": {"d01": IDSet{"r05": {}}},
+			"x02": {"d02": IDSet{"r06": {}}, "d04": IDSet{"r07": {}}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
-			"x03": {"d01": idSet{"r08": {}}},
-			"x04": {"d03": idSet{"r09": {}}, "d04": idSet{"r10": {}}},
+		ReferenceData: map[string]DefaultIDSetMap{
+			"x03": {"d01": IDSet{"r08": {}}},
+			"x04": {"d03": IDSet{"r09": {}}, "d04": IDSet{"r10": {}}},
 		},
 	}
 	canonicalizeDocuments(state)
 
 	expectedState := &CorrelationState{
 		DocumentData: map[string]DocumentData{
-			"d01": {URI: "main.go", Contains: idSet{"r01": {}, "r04": {}}},
-			"d02": {URI: "foo.go", Contains: idSet{"r02": {}}},
-			"d03": {URI: "bar.go", Contains: idSet{"r03": {}}},
+			"d01": {URI: "main.go", Contains: IDSet{"r01": {}, "r04": {}}},
+			"d02": {URI: "foo.go", Contains: IDSet{"r02": {}}},
+			"d03": {URI: "bar.go", Contains: IDSet{"r03": {}}},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
-			"x01": {"d01": idSet{"r05": {}}},
-			"x02": {"d02": idSet{"r06": {}}, "d01": idSet{"r07": {}}},
+		DefinitionData: map[string]DefaultIDSetMap{
+			"x01": {"d01": IDSet{"r05": {}}},
+			"x02": {"d02": IDSet{"r06": {}}, "d01": IDSet{"r07": {}}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
-			"x03": {"d01": idSet{"r08": {}}},
-			"x04": {"d03": idSet{"r09": {}}, "d01": idSet{"r10": {}}},
+		ReferenceData: map[string]DefaultIDSetMap{
+			"x03": {"d01": IDSet{"r08": {}}},
+			"x04": {"d03": IDSet{"r09": {}}, "d01": IDSet{"r10": {}}},
 		},
 	}
 
@@ -47,8 +47,8 @@ func TestCanonicalizeDocuments(t *testing.T) {
 }
 
 func TestCanonicalizeReferenceResults(t *testing.T) {
-	linkedReferenceResults := disjointIDSet{}
-	linkedReferenceResults.union("x01", "x03")
+	linkedReferenceResults := DisjointIDSet{}
+	linkedReferenceResults.Union("x01", "x03")
 
 	state := &CorrelationState{
 		RangeData: map[string]RangeData{
@@ -59,11 +59,11 @@ func TestCanonicalizeReferenceResults(t *testing.T) {
 			"s03": {ReferenceResultID: "x03"},
 			"s04": {ReferenceResultID: "x04"},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
-			"x01": {"d01": idSet{"r05": {}}},
-			"x02": {"d02": idSet{"r06": {}}, "d04": idSet{"r07": {}}},
-			"x03": {"d01": idSet{"r08": {}}, "d03": idSet{"r09": {}}},
-			"x04": {"d04": idSet{"r10": {}}},
+		ReferenceData: map[string]DefaultIDSetMap{
+			"x01": {"d01": IDSet{"r05": {}}},
+			"x02": {"d02": IDSet{"r06": {}}, "d04": IDSet{"r07": {}}},
+			"x03": {"d01": IDSet{"r08": {}}, "d03": IDSet{"r09": {}}},
+			"x04": {"d04": IDSet{"r10": {}}},
 		},
 		LinkedReferenceResults: linkedReferenceResults,
 	}
@@ -78,10 +78,10 @@ func TestCanonicalizeReferenceResults(t *testing.T) {
 			"s03": {ReferenceResultID: "x01"},
 			"s04": {ReferenceResultID: "x04"},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
-			"x01": {"d01": idSet{"r05": {}, "r08": {}}, "d03": idSet{"r09": {}}},
-			"x02": {"d02": idSet{"r06": {}}, "d04": idSet{"r07": {}}},
-			"x04": {"d04": idSet{"r10": {}}},
+		ReferenceData: map[string]DefaultIDSetMap{
+			"x01": {"d01": IDSet{"r05": {}, "r08": {}}, "d03": IDSet{"r09": {}}},
+			"x02": {"d02": IDSet{"r06": {}}, "d04": IDSet{"r07": {}}},
+			"x04": {"d04": IDSet{"r10": {}}},
 		},
 
 		LinkedReferenceResults: linkedReferenceResults,
@@ -93,8 +93,8 @@ func TestCanonicalizeReferenceResults(t *testing.T) {
 }
 
 func TestCanonicalizeResultSets(t *testing.T) {
-	linkedMonikers := disjointIDSet{}
-	linkedMonikers.union("m02", "m05")
+	linkedMonikers := DisjointIDSet{}
+	linkedMonikers.Union("m02", "m05")
 
 	state := &CorrelationState{
 		ResultSetData: map[string]ResultSetData{
@@ -102,31 +102,31 @@ func TestCanonicalizeResultSets(t *testing.T) {
 				DefinitionResultID: "",
 				ReferenceResultID:  "",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m01": {}},
+				MonikerIDs:         IDSet{"m01": {}},
 			},
 			"s02": {
 				DefinitionResultID: "x01",
 				ReferenceResultID:  "x02",
 				HoverResultID:      "x03",
-				MonikerIDs:         idSet{"m02": {}},
+				MonikerIDs:         IDSet{"m02": {}},
 			},
 			"s03": {
 				DefinitionResultID: "x04",
 				ReferenceResultID:  "x05",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m03": {}},
+				MonikerIDs:         IDSet{"m03": {}},
 			},
 			"s04": {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m04": {}},
+				MonikerIDs:         IDSet{"m04": {}},
 			},
 			"s05": {
 				DefinitionResultID: "",
 				ReferenceResultID:  "x08",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m05": {}},
+				MonikerIDs:         IDSet{"m05": {}},
 			},
 		},
 		NextData: map[string]string{
@@ -144,31 +144,31 @@ func TestCanonicalizeResultSets(t *testing.T) {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m01": {}, "m02": {}, "m04": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m01": {}, "m02": {}, "m04": {}, "m05": {}},
 			},
 			"s02": {
 				DefinitionResultID: "x01",
 				ReferenceResultID:  "x02",
 				HoverResultID:      "x03",
-				MonikerIDs:         idSet{"m02": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m05": {}},
 			},
 			"s03": {
 				DefinitionResultID: "x04",
 				ReferenceResultID:  "x05",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m02": {}, "m03": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m03": {}, "m05": {}},
 			},
 			"s04": {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m02": {}, "m04": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m04": {}, "m05": {}},
 			},
 			"s05": {
 				DefinitionResultID: "",
 				ReferenceResultID:  "x08",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m02": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m05": {}},
 			},
 		},
 		NextData:       map[string]string{},
@@ -181,8 +181,8 @@ func TestCanonicalizeResultSets(t *testing.T) {
 }
 
 func TestCanonicalizeRanges(t *testing.T) {
-	linkedMonikers := disjointIDSet{}
-	linkedMonikers.union("m02", "m05")
+	linkedMonikers := DisjointIDSet{}
+	linkedMonikers.Union("m02", "m05")
 
 	state := &CorrelationState{
 		RangeData: map[string]RangeData{
@@ -190,19 +190,19 @@ func TestCanonicalizeRanges(t *testing.T) {
 				DefinitionResultID: "",
 				ReferenceResultID:  "",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m01": {}},
+				MonikerIDs:         IDSet{"m01": {}},
 			},
 			"r02": {
 				DefinitionResultID: "x01",
 				ReferenceResultID:  "x02",
 				HoverResultID:      "x03",
-				MonikerIDs:         idSet{"m02": {}},
+				MonikerIDs:         IDSet{"m02": {}},
 			},
 			"r03": {
 				DefinitionResultID: "x04",
 				ReferenceResultID:  "x05",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m03": {}},
+				MonikerIDs:         IDSet{"m03": {}},
 			},
 		},
 		ResultSetData: map[string]ResultSetData{
@@ -210,13 +210,13 @@ func TestCanonicalizeRanges(t *testing.T) {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m04": {}},
+				MonikerIDs:         IDSet{"m04": {}},
 			},
 			"s02": {
 				DefinitionResultID: "",
 				ReferenceResultID:  "x08",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m05": {}},
+				MonikerIDs:         IDSet{"m05": {}},
 			},
 		},
 		NextData: map[string]string{
@@ -233,19 +233,19 @@ func TestCanonicalizeRanges(t *testing.T) {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m01": {}, "m04": {}},
+				MonikerIDs:         IDSet{"m01": {}, "m04": {}},
 			},
 			"r02": {
 				DefinitionResultID: "x01",
 				ReferenceResultID:  "x02",
 				HoverResultID:      "x03",
-				MonikerIDs:         idSet{"m02": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m05": {}},
 			},
 			"r03": {
 				DefinitionResultID: "x04",
 				ReferenceResultID:  "x05",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m02": {}, "m03": {}, "m05": {}},
+				MonikerIDs:         IDSet{"m02": {}, "m03": {}, "m05": {}},
 			},
 		},
 		ResultSetData: map[string]ResultSetData{
@@ -253,13 +253,13 @@ func TestCanonicalizeRanges(t *testing.T) {
 				DefinitionResultID: "x06",
 				ReferenceResultID:  "x07",
 				HoverResultID:      "",
-				MonikerIDs:         idSet{"m04": {}},
+				MonikerIDs:         IDSet{"m04": {}},
 			},
 			"s02": {
 				DefinitionResultID: "",
 				ReferenceResultID:  "x08",
 				HoverResultID:      "x08",
-				MonikerIDs:         idSet{"m05": {}},
+				MonikerIDs:         IDSet{"m05": {}},
 			},
 		},
 		NextData:       map[string]string{},

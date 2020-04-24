@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"bufio"
@@ -13,39 +13,39 @@ type CorrelationState struct {
 	DumpRoot               string
 	LsifVersion            string
 	ProjectRoot            string
-	UnsupportedVertexes    idSet
+	UnsupportedVertexes    IDSet
 	DocumentData           map[string]DocumentData
 	RangeData              map[string]RangeData
 	ResultSetData          map[string]ResultSetData
-	DefinitionData         map[string]defaultIDSetMap
-	ReferenceData          map[string]defaultIDSetMap
+	DefinitionData         map[string]DefaultIDSetMap
+	ReferenceData          map[string]DefaultIDSetMap
 	HoverData              map[string]string
 	MonikerData            map[string]MonikerData
 	PackageInformationData map[string]PackageInformationData
 	NextData               map[string]string
-	ImportedMonikers       idSet
-	ExportedMonikers       idSet
-	LinkedMonikers         disjointIDSet
-	LinkedReferenceResults disjointIDSet
+	ImportedMonikers       IDSet
+	ExportedMonikers       IDSet
+	LinkedMonikers         DisjointIDSet
+	LinkedReferenceResults DisjointIDSet
 }
 
 func newCorrelationState(dumpRoot string) *CorrelationState {
 	return &CorrelationState{
 		DumpRoot:               dumpRoot,
-		UnsupportedVertexes:    idSet{},
+		UnsupportedVertexes:    IDSet{},
 		DocumentData:           map[string]DocumentData{},
 		RangeData:              map[string]RangeData{},
 		ResultSetData:          map[string]ResultSetData{},
-		DefinitionData:         map[string]defaultIDSetMap{},
-		ReferenceData:          map[string]defaultIDSetMap{},
+		DefinitionData:         map[string]DefaultIDSetMap{},
+		ReferenceData:          map[string]DefaultIDSetMap{},
 		HoverData:              map[string]string{},
 		MonikerData:            map[string]MonikerData{},
 		PackageInformationData: map[string]PackageInformationData{},
 		NextData:               map[string]string{},
-		ImportedMonikers:       idSet{},
-		ExportedMonikers:       idSet{},
-		LinkedMonikers:         disjointIDSet{},
-		LinkedReferenceResults: disjointIDSet{},
+		ImportedMonikers:       IDSet{},
+		ExportedMonikers:       IDSet{},
+		LinkedMonikers:         DisjointIDSet{},
+		LinkedReferenceResults: DisjointIDSet{},
 	}
 }
 
@@ -127,7 +127,7 @@ func correlateElement(state *CorrelationState, element Element) error {
 func correlateVertex(state *CorrelationState, element Element) error {
 	handler, ok := vertexHandlers[element.Label]
 	if !ok {
-		state.UnsupportedVertexes.add(element.ID)
+		state.UnsupportedVertexes.Add(element.ID)
 		return nil
 	}
 
@@ -242,7 +242,7 @@ func correlateContainsEdge(c *CorrelationState, id string, edge Edge) error {
 		if _, ok := c.RangeData[inV]; !ok {
 			return malformedDump(id, edge.InV, "range")
 		}
-		doc.Contains.add(inV)
+		doc.Contains.Add(inV)
 	}
 	return nil
 }
@@ -267,7 +267,7 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 			if _, ok := c.RangeData[inV]; !ok {
 				return malformedDump(id, edge.InV, "range")
 			}
-			documentMap.getOrCreate(edge.Document).add(inV)
+			documentMap.GetOrCreate(edge.Document).Add(inV)
 		}
 
 		return nil
@@ -276,19 +276,19 @@ func correlateItemEdge(c *CorrelationState, id string, edge Edge) error {
 	if documentMap, ok := c.ReferenceData[edge.OutV]; ok {
 		for _, inV := range edge.InVs {
 			if _, ok := c.ReferenceData[inV]; ok {
-				c.LinkedReferenceResults.union(edge.OutV, inV)
+				c.LinkedReferenceResults.Union(edge.OutV, inV)
 			} else {
 				if _, ok = c.RangeData[inV]; !ok {
 					return malformedDump(id, edge.InV, "range")
 				}
-				documentMap.getOrCreate(edge.Document).add(inV)
+				documentMap.GetOrCreate(edge.Document).Add(inV)
 			}
 		}
 
 		return nil
 	}
 
-	if !c.UnsupportedVertexes.contains(edge.OutV) {
+	if !c.UnsupportedVertexes.Contains(edge.OutV) {
 		return malformedDump(id, edge.OutV, "vertex")
 	}
 
@@ -346,8 +346,8 @@ func correlateMonikerEdge(c *CorrelationState, id string, edge Edge) error {
 		return malformedDump(id, edge.InV, "moniker")
 	}
 
-	ids := idSet{}
-	ids.add(edge.InV)
+	ids := IDSet{}
+	ids.Add(edge.InV)
 
 	if source, ok := c.RangeData[edge.OutV]; ok {
 		c.RangeData[edge.OutV] = source.setMonikerIDs(ids)
@@ -367,7 +367,7 @@ func correlateNextMonikerEdge(c *CorrelationState, id string, edge Edge) error {
 		return malformedDump(id, edge.OutV, "moniker")
 	}
 
-	c.LinkedMonikers.union(edge.InV, edge.OutV)
+	c.LinkedMonikers.Union(edge.InV, edge.OutV)
 	return nil
 }
 
@@ -383,9 +383,9 @@ func correlatePackageInformationEdge(c *CorrelationState, id string, edge Edge) 
 
 	switch source.Kind {
 	case "import":
-		c.ImportedMonikers.add(edge.OutV)
+		c.ImportedMonikers.Add(edge.OutV)
 	case "export":
-		c.ExportedMonikers.add(edge.OutV)
+		c.ExportedMonikers.Add(edge.OutV)
 	}
 
 	c.MonikerData[edge.OutV] = source.setPackageInformationID(edge.InV)

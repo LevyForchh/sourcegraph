@@ -1,4 +1,4 @@
-package converter
+package writer
 
 import (
 	"context"
@@ -9,66 +9,23 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jmoiron/sqlx"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/correlation"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/writer/schema"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/database"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/types"
 	"github.com/sourcegraph/sourcegraph/internal/sqliteutil"
 )
 
+const InternalVersion = "0.1.0"
 const MaxNumResultChunks = 1000
 const ResultsPerResultChunk = 500
-const InternalVersion = "0.1.0"
 
-// TODO - put in bindata?
-var schema = `
-	CREATE TABLE "meta" (
-		"id" integer PRIMARY KEY NOT NULL,
-		"lsifVersion" text NOT NULL,
-		"sourcegraphVersion" text NOT NULL,
-		"numResultChunks" integer NOT NULL
-	);
+type sqliteWriter struct {
+	cx              *correlation.CorrelationState
+	numResultChunks int
+}
 
-	CREATE TABLE "documents" (
-		"path" text PRIMARY KEY NOT NULL,
-		"data" blob NOT NULL
-	);
-
-	CREATE TABLE "resultChunks" (
-		"id" integer PRIMARY KEY NOT NULL,
-		"data" blob NOT NULL
-	);
-
-	CREATE TABLE "definitions" (
-		"id" integer PRIMARY KEY NOT NULL,
-		"scheme" text NOT NULL,
-		"identifier" text NOT NULL,
-		"documentPath" text NOT NULL,
-		"startLine" integer NOT NULL,
-		"endLine" integer NOT NULL,
-		"startCharacter" integer NOT NULL,
-		"endCharacter" integer NOT NULL
-	);
-
-	CREATE TABLE "references" (
-		"id" integer PRIMARY KEY NOT NULL,
-		"scheme" text NOT NULL,
-		"identifier" text NOT NULL,
-		"documentPath" text NOT NULL,
-		"startLine" integer NOT NULL,
-		"endLine" integer NOT NULL,
-		"startCharacter" integer NOT NULL,
-		"endCharacter" integer NOT NULL
-	);
-
-	PRAGMA synchronous = OFF;
-	PRAGMA journal_mode = OFF;
-`
-
-var indexes = `
-	CREATE INDEX "idx_definitions" ON "definitions" ("scheme", "identifier");
-	CREATE INDEX "idx_references" ON "references" ("scheme", "identifier");
-`
-
-func sqlite(filename string, fn func(tx *sql.Tx) error) error {
+func Write(cx *correlation.CorrelationState, filename string) error {
 	db, err := sqlx.Open("sqlite3_with_pcre", filename)
 	if err != nil {
 		return err
@@ -79,7 +36,7 @@ func sqlite(filename string, fn func(tx *sql.Tx) error) error {
 		}
 	}()
 
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.Exec(schema.TableDefinitions); err != nil {
 		return err
 	}
 
@@ -98,109 +55,111 @@ func sqlite(filename string, fn func(tx *sql.Tx) error) error {
 			}
 		}()
 
-		return fn(txn)
+		return (&sqliteWriter{cx: cx}).write(context.Background(), txn)
 	}()
 
 	if err != nil {
 		return err
 	}
 
-	if _, err := db.Exec(indexes); err != nil {
+	if _, err := db.Exec(schema.IndexDefinitions); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func Write(cx *CorrelationState, filename string) (err error) {
-	ctx := context.Background()
+func (w *sqliteWriter) write(ctx context.Context, tx *sql.Tx) (err error) {
 	// Calculate the number of result chunks that we'll attempt to populate
-	numResults := len(cx.DefinitionData) + len(cx.ReferenceData)
-	numResultChunks := int(math.Min(MaxNumResultChunks, math.Max(1, math.Floor(float64(numResults)/ResultsPerResultChunk))))
+	numResults := len(w.cx.DefinitionData) + len(w.cx.ReferenceData)
+	w.numResultChunks = int(math.Min(MaxNumResultChunks, math.Max(1, math.Floor(float64(numResults)/ResultsPerResultChunk))))
 
-	return sqlite(filename, func(txn *sql.Tx) error {
-		metadataTableInserter := sqliteutil.NewBatchInserter(txn, "meta", "lsifVersion", "sourcegraphVersion", "numResultChunks")
-		documentsTableInserter := sqliteutil.NewBatchInserter(txn, "documents", "path", "data")
-		resultChunksTableInserter := sqliteutil.NewBatchInserter(txn, "resultChunks", "id", "data")
-		definitionsTableInserter := sqliteutil.NewBatchInserter(txn, "definitions", "scheme", "identifier", "documentPath", "startLine", "startCharacter", "endLine", "endCharacter")
-		referencesTableInserter := sqliteutil.NewBatchInserter(txn, `references`, "scheme", "identifier", "documentPath", "startLine", "startCharacter", "endLine", "endCharacter")
+	metaColumns := []string{"lsifVersion", "sourcegraphVersion", "numResultChunks"}
+	documentsColumns := []string{"path", "data"}
+	resultChunksColumns := []string{"id", "data"}
+	definitionsReferencesColumns := []string{"scheme", "identifier", "documentPath", "startLine", "startCharacter", "endLine", "endCharacter"}
 
-		fns := []func() error{
-			func() error { return populateMetadataTable(ctx, cx, numResultChunks, metadataTableInserter) },
-			func() error { return populateDocumentsTable(ctx, cx, documentsTableInserter) },
-			func() error { return populateResultChunksTable(ctx, cx, numResultChunks, resultChunksTableInserter) },
-			func() error { return populateDefinitionsTable(ctx, cx, definitionsTableInserter) },
-			func() error { return populateReferencesTable(ctx, cx, referencesTableInserter) },
+	metadataTableInserter := sqliteutil.NewBatchInserter(tx, "meta", metaColumns...)
+	documentsTableInserter := sqliteutil.NewBatchInserter(tx, "documents", documentsColumns...)
+	resultChunksTableInserter := sqliteutil.NewBatchInserter(tx, "resultChunks", resultChunksColumns...)
+	definitionsTableInserter := sqliteutil.NewBatchInserter(tx, "definitions", definitionsReferencesColumns...)
+	referencesTableInserter := sqliteutil.NewBatchInserter(tx, `references`, definitionsReferencesColumns...)
+
+	fns := []func() error{
+		func() error { return w.populateMetadataTable(ctx, metadataTableInserter) },
+		func() error { return w.populateDocumentsTable(ctx, documentsTableInserter) },
+		func() error { return w.populateResultChunksTable(ctx, resultChunksTableInserter) },
+		func() error { return w.populateDefinitionsTable(ctx, definitionsTableInserter) },
+		func() error { return w.populateReferencesTable(ctx, referencesTableInserter) },
+	}
+
+	for _, fn := range fns {
+		if err := fn(); err != nil {
+			return err
 		}
+	}
 
-		for _, fn := range fns {
-			if err := fn(); err != nil {
-				return err
-			}
+	inserters := []*sqliteutil.BatchInserter{
+		metadataTableInserter,
+		documentsTableInserter,
+		resultChunksTableInserter,
+		definitionsTableInserter,
+		referencesTableInserter,
+	}
+
+	for _, inserter := range inserters {
+		if err := inserter.Flush(ctx); err != nil {
+			return err
 		}
+	}
 
-		inserters := []*sqliteutil.BatchInserter{
-			metadataTableInserter,
-			documentsTableInserter,
-			resultChunksTableInserter,
-			definitionsTableInserter,
-			referencesTableInserter,
-		}
-
-		for _, inserter := range inserters {
-			if err := inserter.Flush(ctx); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
+	return nil
 }
 
-func populateMetadataTable(ctx context.Context, cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
-	return inserter.Insert(ctx, cx.LsifVersion, InternalVersion, numResultChunks)
+func (w *sqliteWriter) populateMetadataTable(ctx context.Context, inserter *sqliteutil.BatchInserter) error {
+	return inserter.Insert(ctx, w.cx.LsifVersion, InternalVersion, w.numResultChunks)
 }
 
 type DocumentDatas struct {
-	Ranges             map[string]RangeData              `json:"ranges"`
-	HoverResults       map[string]string                 `json:"hoverResults"`
-	Monikers           map[string]MonikerData            `json:"monikers"`
-	PackageInformation map[string]PackageInformationData `json:"packageInformation"`
+	Ranges             map[string]correlation.RangeData              `json:"ranges"`
+	HoverResults       map[string]string                             `json:"hoverResults"`
+	Monikers           map[string]correlation.MonikerData            `json:"monikers"`
+	PackageInformation map[string]correlation.PackageInformationData `json:"packageInformation"`
 }
 
-func populateDocumentsTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
+func (w *sqliteWriter) populateDocumentsTable(ctx context.Context, inserter *sqliteutil.BatchInserter) error {
 	// Gather and insert document data that includes the ranges contained in the document,
 	// any associated hover data, and any associated moniker data/package information.
 	// Each range also has identifiers that correlate to a definition or reference result
 	// which can be found in a result chunk, created in the next step.
 
-	for _, doc := range cx.DocumentData {
+	for _, doc := range w.cx.DocumentData {
 		if strings.HasPrefix(doc.URI, "..") {
 			continue
 		}
 
 		document := DocumentDatas{
-			Ranges:             map[string]RangeData{},
+			Ranges:             map[string]correlation.RangeData{},
 			HoverResults:       map[string]string{},
-			Monikers:           map[string]MonikerData{},
-			PackageInformation: map[string]PackageInformationData{},
+			Monikers:           map[string]correlation.MonikerData{},
+			PackageInformation: map[string]correlation.PackageInformationData{},
 		}
 
 		for rangeID := range doc.Contains {
-			r := cx.RangeData[rangeID]
+			r := w.cx.RangeData[rangeID]
 			document.Ranges[rangeID] = r
 
 			if r.HoverResultID != "" {
-				hoverData := cx.HoverData[r.HoverResultID]
+				hoverData := w.cx.HoverData[r.HoverResultID]
 				document.HoverResults[r.HoverResultID] = hoverData
 			}
 
 			for monikerID := range r.MonikerIDs {
-				moniker := cx.MonikerData[monikerID]
+				moniker := w.cx.MonikerData[monikerID]
 				document.Monikers[monikerID] = moniker
 
 				if moniker.PackageInformationID != "" {
-					packageInformation := cx.PackageInformationData[moniker.PackageInformationID]
+					packageInformation := w.cx.PackageInformationData[moniker.PackageInformationID]
 					document.PackageInformation[moniker.PackageInformationID] = packageInformation
 				}
 			}
@@ -297,17 +256,17 @@ type DocumentIDRangeID struct {
 	RangeID    string `json:"rangeId"`
 }
 
-func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numResultChunks int, inserter *sqliteutil.BatchInserter) error {
+func (w *sqliteWriter) populateResultChunksTable(ctx context.Context, inserter *sqliteutil.BatchInserter) error {
 	var resultChunks []ResultChunk
-	for i := 0; i < numResultChunks; i++ {
+	for i := 0; i < w.numResultChunks; i++ {
 		resultChunks = append(resultChunks, ResultChunk{
 			Paths:              map[string]string{},
 			DocumentIDRangeIDs: map[string][]DocumentIDRangeID{},
 		})
 	}
 
-	addToChunk(cx, resultChunks, cx.DefinitionData)
-	addToChunk(cx, resultChunks, cx.ReferenceData)
+	addToChunk(w.cx, resultChunks, w.cx.DefinitionData)
+	addToChunk(w.cx, resultChunks, w.cx.ReferenceData)
 
 	for id, resultChunk := range resultChunks {
 		if len(resultChunk.Paths) == 0 && len(resultChunk.DocumentIDRangeIDs) == 0 {
@@ -353,7 +312,7 @@ func populateResultChunksTable(ctx context.Context, cx *CorrelationState, numRes
 	return nil
 }
 
-func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[string]defaultIDSetMap) {
+func addToChunk(cx *correlation.CorrelationState, resultChunks []ResultChunk, data map[string]correlation.DefaultIDSetMap) {
 	for id, documentRanges := range data {
 		resultChunk := resultChunks[database.HashKey(types.ID(id), len(resultChunks))]
 
@@ -368,35 +327,35 @@ func addToChunk(cx *CorrelationState, resultChunks []ResultChunk, data map[strin
 	}
 }
 
-func populateDefinitionsTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
-	definitionMonikers := defaultIDSetMap{}
-	for _, r := range cx.RangeData {
+func (w *sqliteWriter) populateDefinitionsTable(ctx context.Context, inserter *sqliteutil.BatchInserter) error {
+	definitionMonikers := correlation.DefaultIDSetMap{}
+	for _, r := range w.cx.RangeData {
 		if r.DefinitionResultID != "" && len(r.MonikerIDs) > 0 {
-			s := definitionMonikers.getOrCreate(r.DefinitionResultID)
+			s := definitionMonikers.GetOrCreate(r.DefinitionResultID)
 			for id := range r.MonikerIDs {
-				s.add(id)
+				s.Add(id)
 			}
 		}
 	}
 
-	return insertMonikerRanges(ctx, cx, cx.DefinitionData, definitionMonikers, inserter)
+	return insertMonikerRanges(ctx, w.cx, w.cx.DefinitionData, definitionMonikers, inserter)
 }
 
-func populateReferencesTable(ctx context.Context, cx *CorrelationState, inserter *sqliteutil.BatchInserter) error {
-	referenceMonikers := defaultIDSetMap{}
-	for _, r := range cx.RangeData {
+func (w *sqliteWriter) populateReferencesTable(ctx context.Context, inserter *sqliteutil.BatchInserter) error {
+	referenceMonikers := correlation.DefaultIDSetMap{}
+	for _, r := range w.cx.RangeData {
 		if r.ReferenceResultID != "" && len(r.MonikerIDs) > 0 {
-			s := referenceMonikers.getOrCreate(r.ReferenceResultID)
+			s := referenceMonikers.GetOrCreate(r.ReferenceResultID)
 			for id := range r.MonikerIDs {
-				s.add(id)
+				s.Add(id)
 			}
 		}
 	}
 
-	return insertMonikerRanges(ctx, cx, cx.ReferenceData, referenceMonikers, inserter)
+	return insertMonikerRanges(ctx, w.cx, w.cx.ReferenceData, referenceMonikers, inserter)
 }
 
-func insertMonikerRanges(ctx context.Context, cx *CorrelationState, data map[string]defaultIDSetMap, monikers defaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
+func insertMonikerRanges(ctx context.Context, cx *correlation.CorrelationState, data map[string]correlation.DefaultIDSetMap, monikers correlation.DefaultIDSetMap, inserter *sqliteutil.BatchInserter) error {
 	for id, documentRanges := range data {
 		monikerIDs, ok := monikers[id]
 		if !ok {

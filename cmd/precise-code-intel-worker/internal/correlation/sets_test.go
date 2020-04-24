@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"sort"
@@ -8,22 +8,22 @@ import (
 )
 
 func TestIDSet(t *testing.T) {
-	ids1 := idSet{}
-	ids1.add("bonk")
-	ids1.add("quux")
+	ids1 := IDSet{}
+	ids1.Add("bonk")
+	ids1.Add("quux")
 
-	ids2 := idSet{}
-	ids2.add("foo")
-	ids2.add("bar")
-	ids2.add("baz")
-	ids2.addAll(ids1)
+	ids2 := IDSet{}
+	ids2.Add("foo")
+	ids2.Add("bar")
+	ids2.Add("baz")
+	ids2.AddAll(ids1)
 
 	expected := []string{"bar", "baz", "bonk", "foo", "quux"}
-	if diff := cmp.Diff(expected, ids2.keys()); diff != "" {
+	if diff := cmp.Diff(expected, ids2.Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
 
-	if value, ok := ids2.choose(); !ok {
+	if value, ok := ids2.Choose(); !ok {
 		t.Errorf("expected a value to be chosen")
 	} else {
 		if value != "bar" {
@@ -31,8 +31,8 @@ func TestIDSet(t *testing.T) {
 		}
 	}
 
-	ids2.add("alpha")
-	if value, ok := ids2.choose(); !ok {
+	ids2.Add("alpha")
+	if value, ok := ids2.Choose(); !ok {
 		t.Errorf("expected a value to be chosen")
 	} else {
 		if value != "alpha" {
@@ -42,8 +42,8 @@ func TestIDSet(t *testing.T) {
 }
 
 func TestChooseEmptyIDSet(t *testing.T) {
-	ids := idSet{}
-	if _, ok := ids.choose(); ok {
+	ids := IDSet{}
+	if _, ok := ids.Choose(); ok {
 		t.Errorf("unexpected ok")
 	}
 }
@@ -53,11 +53,11 @@ func TestChooseEmptyIDSet(t *testing.T) {
 //
 
 func TestDefaultIDSetMap(t *testing.T) {
-	m := defaultIDSetMap{}
-	m.getOrCreate("foo").add("bar")
-	m.getOrCreate("foo").add("baz")
-	m.getOrCreate("bar").add("bonk")
-	m.getOrCreate("bar").add("quux")
+	m := DefaultIDSetMap{}
+	m.GetOrCreate("foo").Add("bar")
+	m.GetOrCreate("foo").Add("baz")
+	m.GetOrCreate("bar").Add("bonk")
+	m.GetOrCreate("bar").Add("quux")
 
 	keys := []string{}
 	for k := range m {
@@ -71,12 +71,12 @@ func TestDefaultIDSetMap(t *testing.T) {
 	}
 
 	expected = []string{"bar", "baz"}
-	if diff := cmp.Diff(expected, m["foo"].keys()); diff != "" {
+	if diff := cmp.Diff(expected, m["foo"].Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
 
 	expected = []string{"bonk", "quux"}
-	if diff := cmp.Diff(expected, m["bar"].keys()); diff != "" {
+	if diff := cmp.Diff(expected, m["bar"].Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
 }
@@ -86,28 +86,28 @@ func TestDefaultIDSetMap(t *testing.T) {
 //
 
 func TestDisjointIDSet(t *testing.T) {
-	s := disjointIDSet{}
-	s.union("1", "2")
-	s.union("3", "4")
-	s.union("1", "3")
-	s.union("5", "6")
+	s := DisjointIDSet{}
+	s.Union("1", "2")
+	s.Union("3", "4")
+	s.Union("1", "3")
+	s.Union("5", "6")
 
-	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.extractSet("1").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.ExtractSet("1").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.extractSet("2").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.ExtractSet("2").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.extractSet("3").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.ExtractSet("3").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.extractSet("4").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"1", "2", "3", "4"}, s.ExtractSet("4").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"5", "6"}, s.extractSet("5").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"5", "6"}, s.ExtractSet("5").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]string{"5", "6"}, s.extractSet("6").keys()); diff != "" {
+	if diff := cmp.Diff([]string{"5", "6"}, s.ExtractSet("6").Keys()); diff != "" {
 		t.Errorf("unexpected keys (-want +got):\n%s", diff)
 	}
 }

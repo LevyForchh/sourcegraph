@@ -1,4 +1,4 @@
-package converter
+package writer
 
 import (
 	"bytes"

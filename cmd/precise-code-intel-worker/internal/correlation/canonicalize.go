@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"sort"
@@ -49,20 +49,20 @@ func canonicalizeDocuments(cx *CorrelationState) {
 		}
 
 		for id := range cx.DocumentData[documentID].Contains {
-			cx.DocumentData[canonicalDocumentID].Contains.add(id)
+			cx.DocumentData[canonicalDocumentID].Contains.Add(id)
 		}
 		delete(cx.DocumentData, documentID)
 
 		for _, rangeIDsByDocumentID := range cx.DefinitionData {
 			if rangeIDs, ok := rangeIDsByDocumentID[documentID]; ok {
-				rangeIDsByDocumentID.getOrCreate(canonicalDocumentID).addAll(rangeIDs)
+				rangeIDsByDocumentID.GetOrCreate(canonicalDocumentID).AddAll(rangeIDs)
 				delete(rangeIDsByDocumentID, documentID)
 			}
 		}
 
 		for _, rangeIDsByDocumentID := range cx.ReferenceData {
 			if rangeIDs, ok := rangeIDsByDocumentID[documentID]; ok {
-				rangeIDsByDocumentID.getOrCreate(canonicalDocumentID).addAll(rangeIDs)
+				rangeIDsByDocumentID.GetOrCreate(canonicalDocumentID).AddAll(rangeIDs)
 				delete(rangeIDsByDocumentID, documentID)
 			}
 		}
@@ -82,8 +82,8 @@ func canonicalizeReferenceResults(cx *CorrelationState) {
 		}
 
 		// Find all reachable items and order them deterministically
-		linkedIDs := cx.LinkedReferenceResults.extractSet(referenceResultID)
-		canonicalID, _ := linkedIDs.choose()
+		linkedIDs := cx.LinkedReferenceResults.ExtractSet(referenceResultID)
+		canonicalID, _ := linkedIDs.Choose()
 		canonicalReferenceResult := cx.ReferenceData[canonicalID]
 
 		for linkedID := range linkedIDs {
@@ -99,7 +99,7 @@ func canonicalizeReferenceResults(cx *CorrelationState) {
 			// If it's a different identifier, then normalize all data from the linked result
 			// set into the canonical one.
 			for documentID, rangeIDs := range cx.ReferenceData[linkedID] {
-				canonicalReferenceResult.getOrCreate(documentID).addAll(rangeIDs)
+				canonicalReferenceResult.GetOrCreate(documentID).AddAll(rangeIDs)
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func mergeNextResultSetData(item, nextItem ResultSetData) ResultSetData {
 		item = item.setHoverResultID(nextItem.HoverResultID)
 	}
 
-	item.MonikerIDs.addAll(nextItem.MonikerIDs)
+	item.MonikerIDs.AddAll(nextItem.MonikerIDs)
 	return item
 }
 
@@ -186,16 +186,16 @@ func mergeNextRangeData(item RangeData, nextItem ResultSetData) RangeData {
 		item = item.setHoverResultID(nextItem.HoverResultID)
 	}
 
-	item.MonikerIDs.addAll(nextItem.MonikerIDs)
+	item.MonikerIDs.AddAll(nextItem.MonikerIDs)
 	return item
 }
 
-func gatherMonikers(cx *CorrelationState, source idSet) idSet {
-	monikers := idSet{}
+func gatherMonikers(cx *CorrelationState, source IDSet) IDSet {
+	monikers := IDSet{}
 	for sourceID := range source {
-		for id := range cx.LinkedMonikers.extractSet(sourceID) {
+		for id := range cx.LinkedMonikers.ExtractSet(sourceID) {
 			if cx.MonikerData[id].Kind != "local" {
-				monikers.add(id)
+				monikers.Add(id)
 			}
 		}
 	}

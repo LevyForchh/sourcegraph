@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/existence"

@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"encoding/json"
@@ -70,7 +70,7 @@ func unmarshalMetaData(element Element, dumpRoot string) (payload MetaData, err 
 
 type DocumentData struct {
 	URI      string `json:"uri"`
-	Contains idSet
+	Contains IDSet
 }
 
 func unmarshalDocumentData(element Element, projectRoot string) (payload DocumentData, err error) {
@@ -79,7 +79,7 @@ func unmarshalDocumentData(element Element, projectRoot string) (payload Documen
 		return DocumentData{}, fmt.Errorf("document URI %s is not relative to project root %s", payload.URI, projectRoot)
 	}
 	payload.URI = payload.URI[len(projectRoot):]
-	payload.Contains = idSet{}
+	payload.Contains = IDSet{}
 	return payload, err
 }
 
@@ -94,7 +94,7 @@ type RangeData struct {
 	DefinitionResultID string `json:"definitionResultId"`
 	ReferenceResultID  string `json:"referenceResultId"`
 	HoverResultID      string `json:"hoverResultId"`
-	MonikerIDs         idSet  `json:"monikerIds"`
+	MonikerIDs         IDSet  `json:"monikerIds"`
 }
 
 func unmarshalRangeData(element Element) (RangeData, error) {
@@ -118,7 +118,7 @@ func unmarshalRangeData(element Element) (RangeData, error) {
 		StartCharacter: payload.Start.Character,
 		EndLine:        payload.End.Line,
 		EndCharacter:   payload.End.Character,
-		MonikerIDs:     idSet{},
+		MonikerIDs:     IDSet{},
 	}, nil
 }
 
@@ -161,7 +161,7 @@ func (d RangeData) setHoverResultID(id string) RangeData {
 	}
 }
 
-func (d RangeData) setMonikerIDs(ids idSet) RangeData {
+func (d RangeData) setMonikerIDs(ids IDSet) RangeData {
 	return RangeData{
 		StartLine:          d.StartLine,
 		StartCharacter:     d.StartCharacter,
@@ -281,11 +281,11 @@ type ResultSetData struct {
 	DefinitionResultID string
 	ReferenceResultID  string
 	HoverResultID      string
-	MonikerIDs         idSet
+	MonikerIDs         IDSet
 }
 
 func unmarshalResultSetData(element Element) (ResultSetData, error) {
-	return ResultSetData{MonikerIDs: idSet{}}, nil
+	return ResultSetData{MonikerIDs: IDSet{}}, nil
 }
 
 func (d ResultSetData) setDefinitionResultID(id string) ResultSetData {
@@ -315,7 +315,7 @@ func (d ResultSetData) setHoverResultID(id string) ResultSetData {
 	}
 }
 
-func (d ResultSetData) setMonikerIDs(ids idSet) ResultSetData {
+func (d ResultSetData) setMonikerIDs(ids IDSet) ResultSetData {
 	return ResultSetData{
 		DefinitionResultID: d.DefinitionResultID,
 		ReferenceResultID:  d.ReferenceResultID,
@@ -327,10 +327,10 @@ func (d ResultSetData) setMonikerIDs(ids idSet) ResultSetData {
 //
 //
 
-func unmarshalDefinitionResultData(element Element) (defaultIDSetMap, error) {
-	return map[string]idSet{}, nil
+func unmarshalDefinitionResultData(element Element) (DefaultIDSetMap, error) {
+	return map[string]IDSet{}, nil
 }
 
-func unmarshalReferenceResultData(element Element) (defaultIDSetMap, error) {
-	return map[string]idSet{}, nil
+func unmarshalReferenceResultData(element Element) (DefaultIDSetMap, error) {
+	return map[string]IDSet{}, nil
 }

@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"bytes"
@@ -23,10 +23,10 @@ func TestCorrelate(t *testing.T) {
 		DumpRoot:            "root",
 		LsifVersion:         "0.4.3",
 		ProjectRoot:         "file:///test/root",
-		UnsupportedVertexes: idSet{},
+		UnsupportedVertexes: IDSet{},
 		DocumentData: map[string]DocumentData{
-			"02": {URI: "/foo.go", Contains: idSet{"04": {}, "05": {}, "06": {}}},
-			"03": {URI: "/bar.go", Contains: idSet{"07": {}, "08": {}, "09": {}}},
+			"02": {URI: "/foo.go", Contains: IDSet{"04": {}, "05": {}, "06": {}}},
+			"03": {URI: "/bar.go", Contains: IDSet{"07": {}, "08": {}, "09": {}}},
 		},
 		RangeData: map[string]RangeData{
 			"04": {
@@ -35,7 +35,7 @@ func TestCorrelate(t *testing.T) {
 				EndLine:            3,
 				EndCharacter:       4,
 				DefinitionResultID: "13",
-				MonikerIDs:         idSet{},
+				MonikerIDs:         IDSet{},
 			},
 			"05": {
 				StartLine:         2,
@@ -43,7 +43,7 @@ func TestCorrelate(t *testing.T) {
 				EndLine:           4,
 				EndCharacter:      5,
 				ReferenceResultID: "15",
-				MonikerIDs:        idSet{},
+				MonikerIDs:        IDSet{},
 			},
 			"06": {
 				StartLine:          3,
@@ -52,7 +52,7 @@ func TestCorrelate(t *testing.T) {
 				EndCharacter:       6,
 				DefinitionResultID: "13",
 				HoverResultID:      "17",
-				MonikerIDs:         idSet{},
+				MonikerIDs:         IDSet{},
 			},
 			"07": {
 				StartLine:         4,
@@ -60,7 +60,7 @@ func TestCorrelate(t *testing.T) {
 				EndLine:           6,
 				EndCharacter:      7,
 				ReferenceResultID: "15",
-				MonikerIDs:        idSet{"18": {}},
+				MonikerIDs:        IDSet{"18": {}},
 			},
 			"08": {
 				StartLine:      5,
@@ -68,32 +68,32 @@ func TestCorrelate(t *testing.T) {
 				EndLine:        7,
 				EndCharacter:   8,
 				HoverResultID:  "17",
-				MonikerIDs:     idSet{},
+				MonikerIDs:     IDSet{},
 			},
 			"09": {
 				StartLine:      6,
 				StartCharacter: 7,
 				EndLine:        8,
 				EndCharacter:   9,
-				MonikerIDs:     idSet{"19": {}},
+				MonikerIDs:     IDSet{"19": {}},
 			},
 		},
 		ResultSetData: map[string]ResultSetData{
 			"10": {
 				DefinitionResultID: "12",
 				ReferenceResultID:  "14",
-				MonikerIDs:         idSet{"20": {}},
+				MonikerIDs:         IDSet{"20": {}},
 			},
 			"11": {
 				HoverResultID: "16",
-				MonikerIDs:    idSet{"21": {}},
+				MonikerIDs:    IDSet{"21": {}},
 			},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
+		DefinitionData: map[string]DefaultIDSetMap{
 			"12": {"03": {"07": {}}},
 			"13": {"03": {"08": {}}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
+		ReferenceData: map[string]DefaultIDSetMap{
 			"14": {"02": {"04": {}, "05": {}}},
 			"15": {},
 		},
@@ -115,10 +115,10 @@ func TestCorrelate(t *testing.T) {
 			"09": "10",
 			"10": "11",
 		},
-		ImportedMonikers:       idSet{"18": {}},
-		ExportedMonikers:       idSet{"19": {}},
-		LinkedMonikers:         disjointIDSet{"19": {"21": {}}, "21": {"19": {}}},
-		LinkedReferenceResults: disjointIDSet{"14": {"15": {}}, "15": {"14": {}}},
+		ImportedMonikers:       IDSet{"18": {}},
+		ExportedMonikers:       IDSet{"19": {}},
+		LinkedMonikers:         DisjointIDSet{"19": {"21": {}}, "21": {"19": {}}},
+		LinkedReferenceResults: DisjointIDSet{"14": {"15": {}}, "15": {"14": {}}},
 	}
 
 	if diff := cmp.Diff(expectedState, state); diff != "" {

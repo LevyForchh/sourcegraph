@@ -1,4 +1,4 @@
-package converter
+package correlation
 
 import (
 	"testing"
@@ -29,11 +29,11 @@ func TestPrune(t *testing.T) {
 			"d04": {URI: "foo.generated.go"},
 			"d05": {URI: "foo.generated.go"},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
+		DefinitionData: map[string]DefaultIDSetMap{
 			"x01": {"d01": {}, "d04": {}},
 			"x02": {"d02": {}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
+		ReferenceData: map[string]DefaultIDSetMap{
 			"x03": {"d02": {}},
 			"x04": {"d02": {}, "d05": {}},
 		},
@@ -49,11 +49,11 @@ func TestPrune(t *testing.T) {
 			"d02": {URI: "bar.go"},
 			"d03": {URI: "sub/baz.go"},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
+		DefinitionData: map[string]DefaultIDSetMap{
 			"x01": {"d01": {}},
 			"x02": {"d02": {}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
+		ReferenceData: map[string]DefaultIDSetMap{
 			"x03": {"d02": {}},
 			"x04": {"d02": {}},
 		},

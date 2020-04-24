@@ -1,4 +1,4 @@
-package converter
+package writer
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jmoiron/sqlx"
+	"github.com/sourcegraph/sourcegraph/cmd/precise-code-intel-worker/internal/correlation"
 	"github.com/sourcegraph/sourcegraph/internal/codeintel/bundles/types"
 	"github.com/sourcegraph/sourcegraph/internal/sqliteutil"
 )
@@ -27,16 +28,16 @@ func TestWrite(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	state := &CorrelationState{
+	state := &correlation.CorrelationState{
 		LsifVersion: "0.4.3",
-		DocumentData: map[string]DocumentData{
-			"d01": {URI: "foo.go", Contains: idSet{"r01": {}, "r02": {}, "r03": {}}},
-			"d02": {URI: "bar.go", Contains: idSet{"r04": {}, "r05": {}, "r06": {}}},
-			"d03": {URI: "baz.go", Contains: idSet{"r07": {}, "r08": {}, "r09": {}}},
+		DocumentData: map[string]correlation.DocumentData{
+			"d01": {URI: "foo.go", Contains: correlation.IDSet{"r01": {}, "r02": {}, "r03": {}}},
+			"d02": {URI: "bar.go", Contains: correlation.IDSet{"r04": {}, "r05": {}, "r06": {}}},
+			"d03": {URI: "baz.go", Contains: correlation.IDSet{"r07": {}, "r08": {}, "r09": {}}},
 		},
-		RangeData: map[string]RangeData{
-			"r01": {StartLine: 1, StartCharacter: 2, EndLine: 3, EndCharacter: 4, DefinitionResultID: "x01", MonikerIDs: idSet{"m01": {}, "m02": {}}},
-			"r02": {StartLine: 2, StartCharacter: 3, EndLine: 4, EndCharacter: 5, ReferenceResultID: "x06", MonikerIDs: idSet{"m03": {}, "m04": {}}},
+		RangeData: map[string]correlation.RangeData{
+			"r01": {StartLine: 1, StartCharacter: 2, EndLine: 3, EndCharacter: 4, DefinitionResultID: "x01", MonikerIDs: correlation.IDSet{"m01": {}, "m02": {}}},
+			"r02": {StartLine: 2, StartCharacter: 3, EndLine: 4, EndCharacter: 5, ReferenceResultID: "x06", MonikerIDs: correlation.IDSet{"m03": {}, "m04": {}}},
 			"r03": {StartLine: 3, StartCharacter: 4, EndLine: 5, EndCharacter: 6, DefinitionResultID: "x02"},
 			"r04": {StartLine: 4, StartCharacter: 5, EndLine: 6, EndCharacter: 7, ReferenceResultID: "x07"},
 			"r05": {StartLine: 5, StartCharacter: 6, EndLine: 7, EndCharacter: 8, DefinitionResultID: "x03"},
@@ -45,14 +46,14 @@ func TestWrite(t *testing.T) {
 			"r08": {StartLine: 8, StartCharacter: 9, EndLine: 0, EndCharacter: 1, HoverResultID: "x09"},
 			"r09": {StartLine: 9, StartCharacter: 0, EndLine: 1, EndCharacter: 2, DefinitionResultID: "x05"},
 		},
-		DefinitionData: map[string]defaultIDSetMap{
+		DefinitionData: map[string]correlation.DefaultIDSetMap{
 			"x01": {"d01": {"r03": {}}, "d02": {"r04": {}}, "d03": {"r07": {}}},
 			"x02": {"d01": {"r02": {}}, "d02": {"r05": {}}, "d03": {"r08": {}}},
 			"x03": {"d01": {"r01": {}}, "d02": {"r06": {}}, "d03": {"r09": {}}},
 			"x04": {"d01": {"r03": {}}, "d02": {"r05": {}}, "d03": {"r07": {}}},
 			"x05": {"d01": {"r02": {}}, "d02": {"r06": {}}, "d03": {"r08": {}}},
 		},
-		ReferenceData: map[string]defaultIDSetMap{
+		ReferenceData: map[string]correlation.DefaultIDSetMap{
 			"x06": {"d01": {"r03": {}}, "d03": {"r07": {}, "r09": {}}},
 			"x07": {"d01": {"r02": {}}, "d03": {"r07": {}, "r09": {}}},
 		},
@@ -60,18 +61,18 @@ func TestWrite(t *testing.T) {
 			"x08": "foo",
 			"x09": "bar",
 		},
-		MonikerData: map[string]MonikerData{
+		MonikerData: map[string]correlation.MonikerData{
 			"m01": {Kind: "import", Scheme: "scheme A", Identifier: "ident A", PackageInformationID: "p01"},
 			"m02": {Kind: "import", Scheme: "scheme B", Identifier: "ident B"},
 			"m03": {Kind: "export", Scheme: "scheme C", Identifier: "ident C", PackageInformationID: "p02"},
 			"m04": {Kind: "export", Scheme: "scheme D", Identifier: "ident D"},
 		},
-		PackageInformationData: map[string]PackageInformationData{
+		PackageInformationData: map[string]correlation.PackageInformationData{
 			"p01": {Name: "pkg A", Version: "0.1.0"},
 			"p02": {Name: "pkg B", Version: "1.2.3"},
 		},
-		ImportedMonikers: idSet{"m01": {}},
-		ExportedMonikers: idSet{"m03": {}},
+		ImportedMonikers: correlation.IDSet{"m01": {}},
+		ExportedMonikers: correlation.IDSet{"m03": {}},
 	}
 
 	filename := filepath.Join(tempDir, "test.db")
