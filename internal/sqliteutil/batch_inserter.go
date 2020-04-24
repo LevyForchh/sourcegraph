@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// BatchInserter batches insertions to a single column in a SQLite database.
+//
+// The benchmark tests provided in this package show that 50% more rows can be
+// inserted in the same time it takes for them to be inserted individually within
+// a transaction.
+//
+// BenchmarkSQLiteInsertion-8                    	   40417	     29440 ns/op
+// BenchmarkSQLiteInsertionInTransaction-8       	  214681	      5542 ns/op
+// BenchmarkSQLiteInsertionWithBatchInserter-8   	  324998	      3701 ns/op
 type BatchInserter struct {
 	db                Execable
 	numColumns        int
@@ -16,12 +25,17 @@ type BatchInserter struct {
 	queryPlaceholders []string
 }
 
+// MaxNumSqliteParameters is the number of `?` placeholders that can be sent to SQLite without error.
 const MaxNumSqliteParameters = 999
 
+// Execable is the minimal common interface over sql.DB and sql.Tx required
+// by BatchInserter.
 type Execable interface {
+	// ExecContext executes a query without returning any rows.
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
+// NewBatchInserter creates a new batch inserter.
 func NewBatchInserter(db Execable, tableName string, columnNames ...string) *BatchInserter {
 	numColumns := len(columnNames)
 	maxBatchSize := (MaxNumSqliteParameters / numColumns) * numColumns
@@ -49,6 +63,8 @@ func NewBatchInserter(db Execable, tableName string, columnNames ...string) *Bat
 	}
 }
 
+// Inserter enqueues the values of a single row for insertion. The given values must match up
+// with the columnNames given at construction of the inserter.
 func (bi *BatchInserter) Insert(ctx context.Context, values ...interface{}) error {
 	if len(values) != bi.numColumns {
 		return fmt.Errorf("expected %d values, got %d", bi.numColumns, len(values))
@@ -63,6 +79,8 @@ func (bi *BatchInserter) Insert(ctx context.Context, values ...interface{}) erro
 	return nil
 }
 
+// Flush ensures that all queued rows are inserted. This method must be invoked at the end
+// of insertion to ensure that all records are flushed to the underlying Execable.
 func (bi *BatchInserter) Flush(ctx context.Context) error {
 	if batch := bi.pop(); len(batch) > 0 {
 		query := bi.queryPrefix + strings.Join(bi.queryPlaceholders[:len(batch)/bi.numColumns], ",")
