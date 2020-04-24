@@ -42,13 +42,14 @@ func NewBatchInserter(db Execable, tableName string, columnNames ...string) *Bat
 
 	placeholders := make([]string, numColumns)
 	quotedColumnNames := make([]string, numColumns)
-	queryPlaceholders := make([]string, maxBatchSize/numColumns)
-
 	for i, columnName := range columnNames {
 		placeholders[i] = "?"
 		quotedColumnNames[i] = fmt.Sprintf(`"%s"`, columnName)
 	}
 
+	queryPrefix := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES `, tableName, strings.Join(quotedColumnNames, ","))
+
+	queryPlaceholders := make([]string, maxBatchSize/numColumns)
 	for i := range queryPlaceholders {
 		queryPlaceholders[i] = fmt.Sprintf("(%s)", strings.Join(placeholders, ","))
 	}
@@ -58,7 +59,7 @@ func NewBatchInserter(db Execable, tableName string, columnNames ...string) *Bat
 		numColumns:        numColumns,
 		maxBatchSize:      maxBatchSize,
 		batch:             make([]interface{}, 0, maxBatchSize),
-		queryPrefix:       fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES `, tableName, strings.Join(quotedColumnNames, ",")),
+		queryPrefix:       queryPrefix,
 		queryPlaceholders: queryPlaceholders,
 	}
 }
@@ -73,6 +74,7 @@ func (bi *BatchInserter) Insert(ctx context.Context, values ...interface{}) erro
 	bi.batch = append(bi.batch, values...)
 
 	if len(bi.batch) >= bi.maxBatchSize {
+		// Flush full batch
 		return bi.Flush(ctx)
 	}
 
@@ -83,6 +85,9 @@ func (bi *BatchInserter) Insert(ctx context.Context, values ...interface{}) erro
 // of insertion to ensure that all records are flushed to the underlying Execable.
 func (bi *BatchInserter) Flush(ctx context.Context) error {
 	if batch := bi.pop(); len(batch) > 0 {
+		// Create a query with enough placeholders to match the current batch size. This should
+		// generally be the full queryPlaceholders slice, except for the last call to Flush which
+		// may be a partial batch.
 		query := bi.queryPrefix + strings.Join(bi.queryPlaceholders[:len(batch)/bi.numColumns], ",")
 
 		if _, err := bi.db.ExecContext(ctx, query, batch...); err != nil {
