@@ -44,7 +44,7 @@ func TestDirectoryContents(t *testing.T) {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}
 
-	expectedContents := map[string]map[string]struct{}{
+	expectedContents := map[string]StringSet{
 		"": {
 			"web/": struct{}{},
 		},
@@ -111,7 +111,7 @@ func TestDirectoryContentsWithRoot(t *testing.T) {
 		t.Fatalf("unexpected error getting directory contents: %s", err)
 	}
 
-	expectedContents := map[string]map[string]struct{}{
+	expectedContents := map[string]StringSet{
 		"root": {
 			"root/web/": struct{}{},
 		},
